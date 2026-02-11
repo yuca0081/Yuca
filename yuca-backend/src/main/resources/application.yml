@@ -1,0 +1,128 @@
+spring:
+  application:
+    name: Yuca
+
+  # PostgreSQL配置
+  datasource:
+    url: jdbc:postgresql://47.94.247.12:5432/yuca
+    username: root
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  # Spring AI 配置
+  ai:
+    dashscope:
+      api-key: sk-4632c16e41c64e738d3b4147aa58581f
+      chat:
+        enabled: true
+        options:
+          model: qwen-plus
+      embedding:
+        enabled: true
+        options:
+          model: text-embedding-v4
+  # Redis配置
+  data:
+    redis:
+      host: 47.94.247.12
+      port: 6379
+      password: CY810051
+      database: 0
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+  # 缓存配置
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600000
+  # 文件上传配置
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 50MB
+      file-size-threshold: 2MB
+
+# MyBatis-Plus配置
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: org.yuca.yuca.user.entity
+
+# 日志配置
+logging:
+  level:
+    root: WARN
+    org.springframework.web: WARN
+    org.yuca.yuca: INFO
+    org.yuca.yuca.common.exception: INFO
+    REQUEST_LOGGER: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %highlight(%-5level) %cyan(%logger{36}) - %msg%rEx{full}"
+
+server:
+  port: 8500
+  servlet:
+    context-path: /api
+
+# JWT配置
+jwt:
+  secret: YucaAppSecretKey2025MustBeAtLeast256BitsLongForHS256Algorithm
+  access-token-expiration: 86400000          # 24小时
+  refresh-token-expiration: 2592000000       # 30天
+  remember-me-expiration: 604800000          # 7天
+  header: Authorization
+  prefix: "Bearer "
+  issuer: yuca
+
+# 登录策略
+login:
+  lock-duration: 1800000
+
+# MinIO配置
+minio:
+  endpoint: http://47.94.247.12:9000
+  access-key: minioadmin
+  secret-key: minioadmin
+  region: cn-north-1
+  bucket-name: yuca
+  max-file-size: 50MB
+
+# Swagger/OpenAPI配置
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  packages-to-scan: org.yuca.yuca.user.controller, org.yuca.yuca.infrastructure.storage.controller, org.yuca.yuca.knowledge.controller
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+
+# 知识库配置
+knowledge:
+  chunk:
+    size: 500              # 切片大小（字符数）
+    overlap: 50            # 切片重叠（字符数）
+  embedding:
+    dimension: 1536        # 向量维度
+    batch-size: 10         # 批处理大小
+  search:
+    default-top-k: 5       # 默认搜索返回数量
+    default-threshold: 0.7 # 默认相似度阈值
+  upload:
+    max-file-size: 52428800 # 最大文件大小（50MB）

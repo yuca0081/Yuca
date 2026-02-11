@@ -1,0 +1,110 @@
+/* 全局样式 */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* 主题色（可自定义） */
+  --color-primary: #14b8a6;          /* 主色调（青色，可修改） */
+  --color-secondary: #0f766e;        /* 辅助色（深青色，可修改） */
+
+  /* 中性色 */
+  --color-text-primary: #1f2937;     /* 主文本（深灰色） */
+  --color-text-secondary: #6b7280;   /* 次要文本（中灰色） */
+  --color-card-bg: rgba(255, 255, 255, 0.75); /* 卡片背景（半透明磨砂） */
+  --color-card-border: rgba(255, 255, 255, 0.5); /* 卡片边框 */
+  --color-background: #f5f5f5;       /* 页面背景色 */
+
+  /* 功能色 */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+
+  /* 间距 */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* 圆角 */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* 背景样式：可根据需要切换为图片、纯色或渐变 */
+  background-image: url('/background.jpg'); /* 背景图片放在 public/ 目录 */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+
+  /* 如果没有背景图片，使用渐变背景作为后备 */
+  /* background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); */
+
+  min-height: 100vh;
+  color: var(--color-text-primary);
+  position: relative;
+}
+
+/* 背景亮度遮罩层 - 调整这里可以改变背景亮度 */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.3); /* 白色遮罩，让背景更亮 */
+  pointer-events: none; /* 让点击事件穿透 */
+  z-index: -1;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+/* 卡片样式（核心设计元素） */
+.card {
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-md);
+  padding: var(--spacing-lg);
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* 响应式布局 */
+@media (max-width: 768px) {
+  body {
+    background-size: auto;
+  }
+
+  .card {
+    padding: var(--spacing-md);
+  }
+}

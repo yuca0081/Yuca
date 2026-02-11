@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试页面</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-image: url('/background.jpg');
+            background-size: cover;
+            background-position: center;
+            min-height: 100vh;
+            color: white;
+        }
+        .test-card {
+            background: rgba(17, 24, 39, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 24px;
+            margin: 20px;
+            backdrop-filter: blur(10px);
+        }
+        .avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 3px solid white;
+            object-fit: cover;
+        }
+        h1 {
+            color: white;
+        }
+        p {
+            color: #d1d5db;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-card">
+        <h1>✅ 图片测试页面</h1>
+        <p>如果你能看到背景图片和下面的头像，说明图片都正常加载了。</p>
+
+        <div style="margin-top: 20px;">
+            <img src="/avatar.jpg" alt="头像" class="avatar">
+        </div>
+
+        <div style="margin-top: 20px;">
+            <p><strong>背景图片:</strong> {{background}}</p>
+            <p><strong>头像图片:</strong> {{avatar}}</p>
+        </div>
+    </div>
+
+    <script>
+        // 测试图片加载
+        const bg = new Image();
+        bg.src = '/background.jpg';
+        bg.onload = () => {
+            document.querySelector('p:first-of-type').textContent = '✅ 背景图片加载成功！如果你能看到背景图片，说明一切正常。';
+        };
+        bg.onerror = () => {
+            alert('❌ 背景图片加载失败');
+        };
+
+        const avatar = new Image();
+        avatar.src = '/avatar.jpg';
+        avatar.onload = () => {
+            console.log('✅ 头像图片加载成功');
+        };
+        avatar.onerror = () => {
+            alert('❌ 头像图片加载失败');
+        };
+    </script>
+</body>
+</html>

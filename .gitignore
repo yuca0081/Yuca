@@ -1,0 +1,31 @@
+### IDE ###
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+
+### Node.js / npm ###
+node_modules/
+npm-cache/
+package-lock.json
+yarn.lock
+
+### Build outputs ###
+dist/
+target/
+build/
+
+### OS files ###
+.DS_Store
+Thumbs.db
+
+### Windows reserved names ###
+nul
+
+### Claude Code ###
+.claude/
+
+### Logs ###
+*.log
+logs/
