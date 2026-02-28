@@ -111,7 +111,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RuntimeException.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Void> handleRuntimeException(RuntimeException e) {
-        log.error("运行时异常: {}", e.getMessage(), e);
+        log.error("================== 异常堆栈开始 ==================", e);
+        log.error("================== 异常堆栈结束 ==================");
         return Result.error(ErrorCode.INTERNAL_SERVER_ERROR.getCode(), e.getMessage());
     }
 
@@ -121,7 +122,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Void> handleException(Exception e) {
-        log.error("系统异常: {}", e.getMessage(), e);
+        log.error("================== 异常堆栈开始 ==================", e);
+        log.error("================== 异常堆栈结束 ==================");
         return Result.error(ErrorCode.INTERNAL_SERVER_ERROR.getCode(), "系统内部错误: " + e.getMessage());
     }
 }

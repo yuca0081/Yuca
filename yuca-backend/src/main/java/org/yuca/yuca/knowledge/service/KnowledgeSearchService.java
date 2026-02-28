@@ -61,7 +61,7 @@ public class KnowledgeSearchService {
         }
 
         // 生成查询向量
-        Float[] queryEmbedding = embeddingService.embed(request.getQuery());
+        Double[] queryEmbedding = embeddingService.embed(request.getQuery());
         String queryVector = embeddingService.formatToPgVector(queryEmbedding);
 
         // 向量搜索
@@ -126,7 +126,7 @@ public class KnowledgeSearchService {
      */
     public List<SearchResultResponse> globalSearch(String query, Integer topK, Double threshold, Long userId) {
         // 生成查询向量
-        Float[] queryEmbedding = embeddingService.embed(query);
+        Double[] queryEmbedding = embeddingService.embed(query);
         String queryVector = embeddingService.formatToPgVector(queryEmbedding);
 
         // 全局向量搜索

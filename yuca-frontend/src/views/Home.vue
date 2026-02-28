@@ -336,7 +336,7 @@ onMounted(async () => {
 .profile-card {
   position: relative;
   padding: 24px;
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(245, 245, 245, 0.9);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.5);
@@ -455,7 +455,7 @@ onMounted(async () => {
   padding: 20px;
   cursor: pointer;
   transition: all 0.3s ease;
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(245, 245, 245, 0.9);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.5);
@@ -464,7 +464,7 @@ onMounted(async () => {
 
 .time-card:hover {
   transform: translateY(-2px);
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(245, 245, 245, 0.95);
   box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45);
 }
 
@@ -519,7 +519,7 @@ onMounted(async () => {
 }
 
 .location-selector {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(245, 245, 245, 0.95);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.6);
@@ -551,13 +551,13 @@ onMounted(async () => {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.3s ease;
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(245, 245, 245, 0.8);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
 
 .location-item:hover {
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(245, 245, 245, 0.9);
   transform: translateY(-2px);
 }
 
@@ -591,7 +591,7 @@ onMounted(async () => {
 }
 
 .function-card {
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(245, 245, 245, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: var(--radius-md);
   backdrop-filter: blur(20px);
@@ -610,7 +610,7 @@ onMounted(async () => {
 
 .function-card:hover {
   transform: translateY(-4px);
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(245, 245, 245, 0.95);
   box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45);
 }
 

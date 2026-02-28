@@ -93,14 +93,12 @@ public class UserController {
 
     @PostMapping(value = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "上传用户头像", description = "上传当前用户的头像图片，支持jpg、png等图片格式")
-    public Result<String> uploadAvatar(
+    public Result<Void> uploadAvatar(
             @RequestParam("file") MultipartFile file,
             HttpServletRequest request) {
         Long userId = getCurrentUserId(request);
-        String objectName = userApplicationService.uploadAvatar(userId, file);
-        // 返回代理访问URL
-        String avatarUrl = "/api/user/avatar";
-        return Result.success("头像上传成功", avatarUrl);
+        userApplicationService.uploadAvatar(userId, file);
+        return Result.success("头像上传成功", null);
     }
 
     @SkipAuth

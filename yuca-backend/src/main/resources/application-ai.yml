@@ -1,0 +1,18 @@
+# Yuca AI 框架配置
+
+# ============================================
+# OpenAI 格式配置（推荐）
+# ============================================
+# 支持所有兼容 OpenAI API 格式的厂商
+#openai:
+#  api-key: sk-your-api-key
+#  base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+#  model: qwen-plus
+#  max-tokens: 2000
+#  temperature: 0.7
+
+qwen:
+  api-key: sk-4632c16e41c64e738d3b4147aa58581f
+  model: qwen3.5-plus
+  max-tokens: 5000
+  temperature: 0.7

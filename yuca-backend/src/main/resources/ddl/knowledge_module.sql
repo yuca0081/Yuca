@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS knowledge_chunk (
                                                doc_id BIGINT NOT NULL,                   -- 所属文档ID
                                                kb_id BIGINT NOT NULL,                    -- 所属知识库ID（冗余，优化查询）
                                                content TEXT NOT NULL,                    -- 文本内容
-                                               embedding vector(1536),                   -- 向量嵌入（1536维，使用pgvector）
+                                               embedding vector(1024),                   -- 向量嵌入（1536维，使用pgvector）
     chunk_index INTEGER NOT NULL,             -- 切片序号
     is_active BOOLEAN DEFAULT TRUE,           -- 是否激活（可用于启用/禁用切片）
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -1,6 +1,8 @@
 spring:
   application:
     name: Yuca
+  profiles:
+    active: ai
 
   # PostgreSQL配置
   datasource:
@@ -8,19 +10,6 @@ spring:
     username: root
     password: postgres
     driver-class-name: org.postgresql.Driver
-
-  # Spring AI 配置
-  ai:
-    dashscope:
-      api-key: sk-4632c16e41c64e738d3b4147aa58581f
-      chat:
-        enabled: true
-        options:
-          model: qwen-plus
-      embedding:
-        enabled: true
-        options:
-          model: text-embedding-v4
   # Redis配置
   data:
     redis:
@@ -66,10 +55,11 @@ logging:
     root: WARN
     org.springframework.web: WARN
     org.yuca.yuca: INFO
-    org.yuca.yuca.common.exception: INFO
+    org.yuca.yuca.common.exception: ERROR
+    org.yuca.yuca.knowledge: DEBUG
     REQUEST_LOGGER: INFO
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %highlight(%-5level) %cyan(%logger{36}) - %msg%rEx{full}"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %highlight(%-5level) %cyan(%logger{36}) - %msg%n"
 
 server:
   port: 8500
@@ -98,6 +88,11 @@ minio:
   region: cn-north-1
   bucket-name: yuca
   max-file-size: 50MB
+
+# OpenAI配置（可选，如果使用OpenAI）
+# openai:
+#   api-key: your-openai-api-key
+#   base-url: https://api.openai.com/v1
 
 # Swagger/OpenAPI配置
 springdoc:

@@ -231,7 +231,7 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
                 .collect(Collectors.toList());
 
         // 批量生成向量
-        List<Float[]> embeddings = embeddingService.batchEmbed(texts);
+        List<Double[]> embeddings = embeddingService.batchEmbed(texts);
 
         // 保存切片
         for (int i = 0; i < chunks.size(); i++) {

@@ -1,6 +1,7 @@
 import axios from 'axios'
 import type { AxiosInstance, AxiosRequestConfig } from 'axios'
 import type { ApiResponse } from '@/types/api'
+import { useUserStore } from '@/stores/user'
 
 // 创建自定义请求类型（响应拦截器会提取 data）
 type RequestInstance = Omit<AxiosInstance, 'get' | 'post' | 'put' | 'delete' | 'patch'> & {
@@ -64,9 +65,8 @@ request.interceptors.response.use(
 
       if (status === 401) {
         // Token 过期或无效，清除所有认证信息并跳转登录
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
-        localStorage.removeItem('user_info')
+        const userStore = useUserStore()
+        userStore.clearAuth()
         window.location.href = '/login'
       } else if (status === 403) {
         console.error('没有权限访问')

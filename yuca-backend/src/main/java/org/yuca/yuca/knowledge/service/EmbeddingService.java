@@ -2,13 +2,10 @@ package org.yuca.yuca.knowledge.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.document.Document;
-import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.stereotype.Service;
+import org.yuca.yuca.ai.client.AIEmbeddingClient;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * 向量嵌入服务
@@ -22,28 +19,21 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class EmbeddingService {
 
-    private final EmbeddingModel embeddingModel;
+    private final AIEmbeddingClient embeddingClient;
 
     /**
      * 为单个文本生成向量嵌入
      *
      * @param text 输入文本
-     * @return 向量嵌入数组
+     * @return 向量嵌入数组（Double类型保持精度）
      */
-    public Float[] embed(String text) {
+    public Double[] embed(String text) {
         try {
             if (text == null || text.trim().isEmpty()) {
                 throw new IllegalArgumentException("文本内容不能为空");
             }
 
-            EmbeddingResponse response = embeddingModel.embedForResponse(List.of(text));
-            float[] floatArray = response.getResults().get(0).getOutput();
-
-            // Convert float[] to Float[]
-            Float[] embeddings = new Float[floatArray.length];
-            for (int i = 0; i < floatArray.length; i++) {
-                embeddings[i] = floatArray[i];
-            }
+            Double[] embeddings = embeddingClient.embed(text);
 
             log.debug("文本嵌入生成成功，文本长度: {}, 向量维度: {}", text.length(), embeddings.length);
             return embeddings;
@@ -58,26 +48,15 @@ public class EmbeddingService {
      * 批量生成向量嵌入
      *
      * @param texts 文本列表
-     * @return 向量嵌入列表
+     * @return 向量嵌入列表（Double类型保持精度）
      */
-    public List<Float[]> batchEmbed(List<String> texts) {
+    public List<Double[]> batchEmbed(List<String> texts) {
         try {
             if (texts == null || texts.isEmpty()) {
                 throw new IllegalArgumentException("文本列表不能为空");
             }
 
-            EmbeddingResponse response = embeddingModel.embedForResponse(texts);
-
-            List<Float[]> embeddings = response.getResults().stream()
-                    .map(result -> {
-                        float[] floatArray = result.getOutput();
-                        Float[] objectArray = new Float[floatArray.length];
-                        for (int i = 0; i < floatArray.length; i++) {
-                            objectArray[i] = floatArray[i];
-                        }
-                        return objectArray;
-                    })
-                    .collect(Collectors.toList());
+            List<Double[]> embeddings = embeddingClient.batchEmbed(texts);
 
             log.info("批量嵌入生成成功，文本数量: {}", texts.size());
             return embeddings;
@@ -95,7 +74,7 @@ public class EmbeddingService {
      * @param vec2 向量2
      * @return 相似度得分（0-1之间，1表示完全相同）
      */
-    public Double cosineSimilarity(Float[] vec1, Float[] vec2) {
+    public Double cosineSimilarity(Double[] vec1, Double[] vec2) {
         if (vec1 == null || vec2 == null) {
             throw new IllegalArgumentException("向量不能为null");
         }
@@ -125,10 +104,10 @@ public class EmbeddingService {
     /**
      * 将向量数组转换为pgvector格式字符串
      *
-     * @param embedding 向量数组
+     * @param embedding 向量数组（Double类型）
      * @return pgvector格式字符串
      */
-    public String formatToPgVector(Float[] embedding) {
+    public String formatToPgVector(Double[] embedding) {
         if (embedding == null || embedding.length == 0) {
             throw new IllegalArgumentException("向量数组不能为空");
         }

@@ -12,11 +12,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 @MappedJdbcTypes({JdbcType.OTHER})
-@MappedTypes({Float[].class})
-public class PGVectorTypeHandler extends BaseTypeHandler<Float[]> {
+@MappedTypes({Double[].class})
+public class PGVectorTypeHandler extends BaseTypeHandler<Double[]> {
 
     @Override
-    public void setNonNullParameter(PreparedStatement ps, int i, Float[] parameter, JdbcType jdbcType) throws SQLException {
+    public void setNonNullParameter(PreparedStatement ps, int i, Double[] parameter, JdbcType jdbcType) throws SQLException {
         PGobject pgObject = new PGobject();
         pgObject.setType("vector");
         pgObject.setValue(arrayToString(parameter));
@@ -24,7 +24,7 @@ public class PGVectorTypeHandler extends BaseTypeHandler<Float[]> {
     }
 
     @Override
-    public Float[] getNullableResult(ResultSet rs, String columnName) throws SQLException {
+    public Double[] getNullableResult(ResultSet rs, String columnName) throws SQLException {
         String value = rs.getString(columnName);
         if (value == null) {
             return null;
@@ -33,7 +33,7 @@ public class PGVectorTypeHandler extends BaseTypeHandler<Float[]> {
     }
 
     @Override
-    public Float[] getNullableResult(ResultSet rs, int columnIndex) throws SQLException {
+    public Double[] getNullableResult(ResultSet rs, int columnIndex) throws SQLException {
         String value = rs.getString(columnIndex);
         if (value == null) {
             return null;
@@ -42,7 +42,7 @@ public class PGVectorTypeHandler extends BaseTypeHandler<Float[]> {
     }
 
     @Override
-    public Float[] getNullableResult(CallableStatement cs, int columnIndex) throws SQLException {
+    public Double[] getNullableResult(CallableStatement cs, int columnIndex) throws SQLException {
         String value = cs.getString(columnIndex);
         if (value == null) {
             return null;
@@ -50,7 +50,7 @@ public class PGVectorTypeHandler extends BaseTypeHandler<Float[]> {
         return stringToArray(value);
     }
 
-    private String arrayToString(Float[] array) {
+    private String arrayToString(Double[] array) {
         if (array == null) {
             return null;
         }
@@ -66,7 +66,7 @@ public class PGVectorTypeHandler extends BaseTypeHandler<Float[]> {
         return sb.toString();
     }
 
-    private Float[] stringToArray(String value) {
+    private Double[] stringToArray(String value) {
         if (value == null || value.isEmpty()) {
             return null;
         }
@@ -76,9 +76,9 @@ public class PGVectorTypeHandler extends BaseTypeHandler<Float[]> {
             value = value.substring(1, value.length() - 1);
         }
         String[] values = value.split(",");
-        Float[] result = new Float[values.length];
+        Double[] result = new Double[values.length];
         for (int i = 0; i < values.length; i++) {
-            result[i] = Float.parseFloat(values[i].trim());
+            result[i] = Double.parseDouble(values[i].trim());
         }
         return result;
     }

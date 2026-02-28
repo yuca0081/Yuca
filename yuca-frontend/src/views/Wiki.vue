@@ -61,8 +61,27 @@
               class="kb-item"
               :class="{ active: selectedKbId === kb.id }"
               @click="selectKnowledgeBase(kb.id)"
+              @mouseenter="hoveredKbId = kb.id"
+              @mouseleave="hoveredKbId = null"
             >
-              <span>• {{ kb.name }}</span>
+              <span class="kb-name">• {{ kb.name }}</span>
+              <div class="kb-menu-wrapper">
+                <n-dropdown
+                  :show="showDropdown && currentKbForMenu?.id === kb.id"
+                  :options="dropdownOptions"
+                  @select="handleDropdownSelect"
+                  @clickoutside="showDropdown = false"
+                  placement="right-start"
+                  trigger="manual"
+                >
+                  <div
+                    class="kb-menu-btn"
+                    @click.stop="showKbMenu(kb, $event)"
+                  >
+                    <n-icon :component="EllipsisHorizontalOutline" size="16" />
+                  </div>
+                </n-dropdown>
+              </div>
             </div>
             <div v-if="knowledgeBases.length === 0" class="kb-empty-state">
               暂无知识库
@@ -165,7 +184,7 @@
         <div v-else-if="activeView === 'docs' && selectedKb">
           <div class="content-header">
             <h3 class="content-title">{{ selectedKb.name }}</h3>
-            <n-button size="small" @click="showUploadModal = true">
+            <n-button text size="small" class="upload-doc-btn" @click="showUploadModal = true">
               <template #icon>
                 <n-icon :component="CloudUploadOutline" />
               </template>
@@ -185,7 +204,7 @@
                 @click="viewChunks(doc)"
               >
                 <div class="doc-icon">
-                  <n-icon :component="DocumentTextOutline" />
+                  <n-icon :component="FileTrayOutline" />
                 </div>
                 <div class="doc-name">{{ doc.docName }}</div>
                 <div class="doc-meta">
@@ -240,7 +259,7 @@
     <n-modal v-model:show="showCreateKbModal" preset="card" title="创建知识库" class="create-modal" style="width: 500px">
       <n-form ref="createFormRef" :model="createForm" :rules="createRules" label-placement="left" label-width="80">
         <n-form-item label="名称" path="name">
-          <n-input v-model:value="createForm.name" placeholder="请输入知识库名称" />
+          <n-input v-model:value="createForm.name" placeholder="请输入知识库名称" class="modal-input" />
         </n-form-item>
         <n-form-item label="描述" path="description">
           <n-input
@@ -248,13 +267,14 @@
             type="textarea"
             placeholder="请输入知识库描述"
             :rows="3"
+            class="modal-input"
           />
         </n-form-item>
       </n-form>
       <template #footer>
         <div style="display: flex; justify-content: flex-end; gap: 12px;">
           <n-button @click="showCreateKbModal = false">取消</n-button>
-          <n-button type="primary" @click="handleCreateKb" :loading="createLoading">创建</n-button>
+          <n-button type="primary" class="modal-primary-btn" @click="handleCreateKb" :loading="createLoading">创建</n-button>
         </div>
       </template>
     </n-modal>
@@ -283,6 +303,21 @@
         <n-button @click="showUploadModal = false">关闭</n-button>
       </template>
     </n-modal>
+
+    <!-- 编辑知识库弹窗 -->
+    <n-modal v-model:show="showRenameModal" preset="card" title="编辑知识库" class="create-modal" style="width: 500px">
+      <n-form ref="renameFormRef" :model="renameForm" :rules="{ name: { required: true, message: '请输入知识库名称', trigger: 'blur' } }" label-placement="left" label-width="80">
+        <n-form-item label="名称" path="name">
+          <n-input v-model:value="renameForm.name" placeholder="请输入知识库名称" class="modal-input" />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <n-button @click="showRenameModal = false">取消</n-button>
+          <n-button type="primary" class="modal-primary-btn" @click="handleRenameKb" :loading="renameLoading">确定</n-button>
+        </div>
+      </template>
+    </n-modal>
   </div>
 </template>
 
@@ -302,7 +337,9 @@ import {
   NUploadDragger,
   NP,
   NText,
-  useMessage
+  NDropdown,
+  useMessage,
+  useDialog
 } from 'naive-ui'
 import type { UploadCustomRequestOptions } from 'naive-ui'
 import * as knowledgeApi from '@/api/knowledge'
@@ -313,6 +350,9 @@ import {
   AddCircleOutline,
   CloudUploadOutline,
   DocumentTextOutline,
+  DocumentOutline,
+  CopyOutline,
+  FileTrayOutline,
   ArrowBackOutline,
   FolderOutline,
   ChevronForwardOutline,
@@ -322,11 +362,13 @@ import {
   NotificationsOutline,
   SearchOutline,
   GridOutline,
-  ListOutline
+  ListOutline,
+  EllipsisHorizontalOutline
 } from '@vicons/ionicons5'
 
 const router = useRouter()
 const message = useMessage()
+const dialog = useDialog()
 
 // ========== 侧栏相关 ==========
 // 侧栏宽度状态
@@ -425,6 +467,18 @@ const createRules = {
 
 // 上传文档弹窗
 const showUploadModal = ref(false)
+
+// 下拉菜单相关
+const showDropdown = ref(false)
+const hoveredKbId = ref<number | null>(null)
+const currentKbForMenu = ref<KnowledgeBase | null>(null)
+
+// 重命名弹窗
+const showRenameModal = ref(false)
+const renameForm = ref({
+  name: ''
+})
+const renameLoading = ref(false)
 
 // ========== 计算属性 ==========
 
@@ -620,6 +674,86 @@ const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB'
   return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
+}
+
+// 下拉菜单选项
+const dropdownOptions = [
+  {
+    label: '编辑',
+    key: 'rename'
+  },
+  {
+    label: '删除',
+    key: 'delete'
+  }
+]
+
+// 处理下拉菜单选择
+const handleDropdownSelect = (key: string) => {
+  if (!currentKbForMenu.value) return
+
+  if (key === 'rename') {
+    renameForm.value.name = currentKbForMenu.value.name
+    showRenameModal.value = true
+  } else if (key === 'delete') {
+    handleDeleteKb(currentKbForMenu.value)
+  }
+  showDropdown.value = false
+}
+
+// 显示下拉菜单
+const showKbMenu = (kb: KnowledgeBase, e: MouseEvent) => {
+  e.stopPropagation()
+  currentKbForMenu.value = kb
+  showDropdown.value = true
+}
+
+// 删除知识库
+const handleDeleteKb = async (kb: KnowledgeBase) => {
+  dialog.warning({
+    title: '删除知识库',
+    content: `确定要删除知识库"${kb.name}"吗？此操作不可恢复。`,
+    positiveText: '删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await knowledgeApi.deleteKnowledgeBase(kb.id)
+        message.success('知识库删除成功')
+
+        // 如果删除的是当前选中的知识库，清除选中状态
+        if (selectedKbId.value === kb.id) {
+          selectedKbId.value = null
+          activeView.value = 'list'
+        }
+
+        await loadKnowledgeBases()
+      } catch (error: any) {
+        console.error('删除知识库失败:', error)
+        message.error(error.message || '删除知识库失败')
+      }
+    }
+  })
+}
+
+// 重命名知识库
+const handleRenameKb = async () => {
+  if (!currentKbForMenu.value || !renameForm.value.name.trim()) return
+
+  try {
+    renameLoading.value = true
+    await knowledgeApi.updateKnowledgeBase(currentKbForMenu.value.id, {
+      name: renameForm.value.name.trim()
+    })
+    message.success('知识库编辑成功')
+    showRenameModal.value = false
+    renameForm.value.name = ''
+    await loadKnowledgeBases()
+  } catch (error: any) {
+    console.error('编辑知识库失败:', error)
+    message.error(error.message || '编辑知识库失败')
+  } finally {
+    renameLoading.value = false
+  }
 }
 
 // 开始拖动调整宽度
@@ -948,6 +1082,10 @@ onUnmounted(() => {
 }
 
 .kb-item {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 6px 12px;
   font-size: 13px;
   color: var(--color-text-secondary);
@@ -965,6 +1103,41 @@ onUnmounted(() => {
   color: #14b8a6;
   background: rgba(20, 184, 166, 0.1);
   font-weight: 500;
+}
+
+.kb-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kb-menu-wrapper {
+  position: relative;
+  margin-left: 8px;
+}
+
+.kb-menu-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  opacity: 0;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.kb-item:hover .kb-menu-btn,
+.kb-menu-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.kb-menu-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
 }
 
 .kb-empty-state {
@@ -1108,8 +1281,9 @@ onUnmounted(() => {
 }
 
 .view-toggle :deep(.n-button.active) {
-  background: rgba(20, 184, 166, 0.15) !important;
-  color: #14b8a6 !important;
+  background: rgba(0, 0, 0, 0.1) !important;
+  color: #1a1a1a !important;
+  font-weight: 500;
 }
 
 /* 分组区域 */
@@ -1228,11 +1402,11 @@ onUnmounted(() => {
   color: var(--color-text-primary);
 }
 
-/* 文档列表 */
+/* 文档列表 - 列表形式 */
 .doc-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .doc-list:not(.has-docs) {
@@ -1253,56 +1427,59 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 8px;
+  padding: 8px 12px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .doc-card:hover {
-  background: rgba(128, 128, 128, 0.25);
+  background: rgba(128, 128, 128, 0.15);
   border-color: rgba(128, 128, 128, 0.2);
-  transform: translateY(-4px);
-  box-shadow: 0 6px 16px 0 rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.1);
 }
 
 .doc-card:active {
-  background: rgba(128, 128, 128, 0.35);
+  background: rgba(128, 128, 128, 0.2);
 }
 
 .doc-icon {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  margin-bottom: 12px;
-  font-size: 20px;
+  color: var(--color-text-secondary);
+  font-size: 18px;
+  flex-shrink: 0;
 }
 
 .doc-name {
   font-size: 14px;
   font-weight: 500;
   color: var(--color-text-primary);
-  margin-bottom: 8px;
+  flex: 1;
 }
 
 .doc-meta {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--color-text-secondary);
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
 }
 
-/* 切片网格 */
+/* 切片网格 - 增加间距，减少悬浮效果 */
 .chunks-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 24px;
 }
 
 .chunk-card {
@@ -1312,19 +1489,19 @@ onUnmounted(() => {
   border-radius: 12px;
   padding: 20px;
   min-height: 150px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s ease;
   cursor: pointer;
 }
 
 .chunk-card:hover {
-  background: rgba(128, 128, 128, 0.25);
-  border-color: rgba(128, 128, 128, 0.2);
-  transform: translateY(-4px);
-  box-shadow: 0 6px 16px 0 rgba(0, 0, 0, 0.15);
+  background: rgba(128, 128, 128, 0.15);
+  border-color: rgba(128, 128, 128, 0.25);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.12);
 }
 
 .chunk-card:active {
-  background: rgba(128, 128, 128, 0.35);
+  background: rgba(128, 128, 128, 0.2);
 }
 
 .chunk-content {
@@ -1402,11 +1579,13 @@ onUnmounted(() => {
   }
 
   .doc-list {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    flex-direction: column;
+    gap: 8px;
   }
 
   .chunks-grid {
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
   }
 
   .kb-grid {
@@ -1450,11 +1629,17 @@ onUnmounted(() => {
   }
 
   .doc-list {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .doc-card {
+    padding: 8px 10px;
   }
 
   .chunks-grid {
     grid-template-columns: 1fr;
+    gap: 16px;
   }
 
   .kb-grid {
@@ -1465,11 +1650,41 @@ onUnmounted(() => {
 /* ========== 弹窗样式 ========== */
 .create-modal :deep(.n-card),
 :deep(.n-modal) {
-  border-radius: 20px !important;
+  border-radius: 32px !important;
 }
 
 :deep(.n-card__header) {
-  border-radius: 20px 20px 0 0 !important;
+  border-radius: 32px 32px 0 0 !important;
+}
+
+/* 删除确认对话框圆角 */
+:deep(.n-dialog) {
+  border-radius: 32px !important;
+}
+
+:deep(.n-dialog__title) {
+  border-radius: 32px 32px 0 0 !important;
+}
+
+/* 上传文档按钮 - 浅色背景，深灰色边框 */
+.upload-doc-btn {
+  background: rgba(0, 0, 0, 0.02) !important;
+  color: var(--color-text-primary) !important;
+  border: 1px solid rgba(0, 0, 0, 0.2) !important;
+  box-shadow: none !important;
+  padding: 4px 12px !important;
+  border-radius: 6px !important;
+  font-size: 13px !important;
+}
+
+.upload-doc-btn:hover {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(0, 0, 0, 0.3) !important;
+}
+
+.upload-doc-btn:focus {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(0, 0, 0, 0.3) !important;
 }
 
 /* 按钮圆角 */
@@ -1509,5 +1724,73 @@ onUnmounted(() => {
 :deep(.n-input:focus),
 :deep(.n-input.n-input--focus) {
   box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1) !important;
+}
+
+/* ========== 弹窗样式 ========== */
+/* 模态框主按钮 - 使用主题色 */
+.modal-primary-btn {
+  background: var(--color-primary) !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+.modal-primary-btn:hover {
+  background: var(--color-secondary) !important;
+}
+
+.modal-primary-btn:active {
+  background: #0d9488 !important;
+}
+
+/* 模态框输入框 - 灰色边框 */
+:deep(.modal-input .n-input__input-el),
+:deep(.modal-input .n-input__textarea-el) {
+  border-color: rgba(0, 0, 0, 0.15) !important;
+}
+
+:deep(.modal-input .n-input__input-el:focus),
+:deep(.modal-input .n-input__textarea-el:focus) {
+  border-color: rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08) !important;
+}
+
+:deep(.modal-input.n-input:focus),
+:deep(.modal-input.n-input.n-input--focus) {
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* 模态框默认按钮 - 灰色 */
+.create-modal :deep(.n-button--default) {
+  background: rgba(0, 0, 0, 0.05) !important;
+  color: var(--color-text-primary) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+}
+
+.create-modal :deep(.n-button--default:hover) {
+  background: rgba(0, 0, 0, 0.1) !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
+}
+
+/* ========== 对话框黑白灰样式 ========== */
+/* 对话框确认按钮 - 红色（删除操作） */
+:deep(.n-dialog__action .n-button--warning) {
+  background: #dc2626 !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+:deep(.n-dialog__action .n-button--warning:hover) {
+  background: #b91c1c !important;
+}
+
+/* 对话框取消按钮 - 灰色 */
+:deep(.n-dialog__action .n-button--default) {
+  background: rgba(0, 0, 0, 0.05) !important;
+  color: var(--color-text-primary) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+}
+
+:deep(.n-dialog__action .n-button--default:hover) {
+  background: rgba(0, 0, 0, 0.1) !important;
 }
 </style>

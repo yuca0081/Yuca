@@ -21,12 +21,6 @@ const routes = [
     meta: { title: '登录', requireAuth: false }
   },
   {
-    path: '/register',
-    name: 'Register',
-    component: () => import('@/views/Auth.vue'),
-    meta: { title: '注册', requireAuth: false }
-  },
-  {
     path: '/profile',
     name: 'Profile',
     component: () => import('@/views/Profile.vue'),
@@ -123,20 +117,41 @@ const router = createRouter({
 })
 
 // 路由守卫：实现登录验证
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   // 设置页面标题
   document.title = `${to.meta.title || 'Yuca'} - 个人主页`
 
   const userStore = useUserStore()
   const requireAuth = to.meta.requireAuth
 
-  if (requireAuth && !userStore.isLoggedIn()) {
-    // 需要登录但未登录，跳转到登录页
-    next({
-      name: 'Login',
-      query: { redirect: to.fullPath }
-    })
+  if (requireAuth) {
+    // 需要认证的页面
+    if (!userStore.isLoggedIn()) {
+      // 没有 token，跳转到登录页
+      next({
+        name: 'Login',
+        query: { redirect: to.fullPath }
+      })
+      return
+    }
+
+    // 有 token，但尝试验证其有效性
+    // 如果 token 无效，userStore 会自动清除，下次 isLoggedIn() 返回 false
+    try {
+      // 只有在从其他页面跳转时才验证，避免页面刷新时重复验证
+      if (from.name !== undefined) {
+        await userStore.fetchUserInfo()
+      }
+      next()
+    } catch (error) {
+      // Token 无效，userStore 已在响应拦截器中清除
+      next({
+        name: 'Login',
+        query: { redirect: to.fullPath }
+      })
+    }
   } else {
+    // 不需要认证的页面，直接放行
     next()
   }
 })

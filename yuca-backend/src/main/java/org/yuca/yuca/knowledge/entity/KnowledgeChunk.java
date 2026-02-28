@@ -2,6 +2,7 @@ package org.yuca.yuca.knowledge.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
+import org.yuca.yuca.knowledge.handler.PGVectorTypeHandler;
 
 import java.time.LocalDateTime;
 
@@ -37,9 +38,10 @@ public class KnowledgeChunk {
     private String content;
 
     /**
-     * 向量嵌入（1536维）
+     * 向量嵌入（使用Double数组保持精度）
      */
-    private Float[] embedding;
+    @TableField(typeHandler = PGVectorTypeHandler.class)
+    private Double[] embedding;
 
     /**
      * 切片序号
