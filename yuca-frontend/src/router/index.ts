@@ -12,7 +12,7 @@ const routes = [
     path: '/blog',
     name: 'Blog',
     component: () => import('@/views/Blog.vue'),
-    meta: { title: '博客', requireAuth: true }
+    meta: { title: '测试', requireAuth: true }
   },
   {
     path: '/login',

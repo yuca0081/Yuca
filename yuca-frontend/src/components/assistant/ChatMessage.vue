@@ -1,16 +1,8 @@
 <template>
   <div class="chat-message" :class="`message-${message.role}`">
     <div class="message-avatar">
-      <n-avatar v-if="message.role === 'user'" round size="small">
-        <template #icon>
-          <n-icon><UserIcon /></n-icon>
-        </template>
-      </n-avatar>
-      <n-avatar v-else round size="small" color="#666">
-        <template #icon>
-          <n-icon><RobotIcon /></n-icon>
-        </template>
-      </n-avatar>
+      <n-avatar v-if="message.role === 'user'" round size="small" :component="UserIcon" />
+      <n-avatar v-else round size="small" color="#666" :component="RobotIcon" />
     </div>
 
     <div class="message-content">
@@ -19,16 +11,16 @@
           {{ message.role === 'user' ? '你' : '小助手' }}
         </span>
         <span class="message-time">
-          {{ formatTime(message.timestamp) }}
+          {{ formatTime(message.createdAt) }}
         </span>
       </div>
 
       <div class="message-text">
-        <div
-          v-if="message.role === 'assistant'"
-          class="markdown-content"
-          v-html="renderedMarkdown"
-        />
+        <!-- 流式输出时显示纯文本，避免频繁markdown渲染 -->
+        <div v-if="message.role === 'assistant'" class="markdown-content">
+          <div v-if="streaming" class="streaming-content">{{ message.content }}</div>
+          <div v-else v-html="renderedMarkdown" />
+        </div>
         <div v-else class="user-content">
           {{ message.content }}
         </div>
@@ -38,7 +30,7 @@
       <div v-if="message.role === 'assistant' && message.content" class="message-actions">
         <n-button size="tiny" text @click="copyMessage">
           <template #icon>
-            <n-icon><CopyIcon /></n-icon>
+            <n-icon :component="CopyIcon" />
           </template>
           复制
         </n-button>
@@ -67,11 +59,11 @@ interface Props {
 const props = defineProps<Props>()
 
 // 配置 markdown-it
-const md = markdownIt({
+const md: any = markdownIt({
   html: false,
   linkify: true,
   typographer: true,
-  highlight: (str, lang) => {
+  highlight: (str: string, lang: string) => {
     if (lang && hljs.getLanguage(lang)) {
       try {
         return `<pre class="hljs"><code>${hljs.highlight(str, { language: lang }).value}</code></pre>`
@@ -86,8 +78,8 @@ const renderedMarkdown = computed(() => {
   return md.render(props.message.content)
 })
 
-const formatTime = (timestamp: number) => {
-  const date = new Date(timestamp)
+const formatTime = (dateString: string) => {
+  const date = new Date(dateString)
   return date.toLocaleTimeString('zh-CN', {
     hour: '2-digit',
     minute: '2-digit'
@@ -164,6 +156,13 @@ const copyMessage = () => {
 
 .markdown-content {
   color: #333;
+}
+
+.streaming-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #333;
+  line-height: 1.6;
 }
 
 /* Markdown 样式 */

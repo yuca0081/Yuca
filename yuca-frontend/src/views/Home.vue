@@ -217,7 +217,7 @@ const functionItems: FunctionItem[] = [
     icon: ChatbubbleEllipsesOutline
   },
   {
-    name: '博客',
+    name: '测试',
     path: '/blog',
     icon: BookOutline
   },

@@ -684,10 +684,10 @@ export default {
   padding: 8px 14px !important;
   font-size: 13px !important;
   height: 36px !important;
-  background: rgba(255, 255, 255, 0.75) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
   backdrop-filter: blur(20px) !important;
   -webkit-backdrop-filter: blur(20px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
   border-radius: 12px !important;
   box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.2) !important;
   color: var(--color-text-primary) !important;
@@ -695,7 +695,7 @@ export default {
 }
 
 .back-home-btn:hover {
-  background: rgba(255, 255, 255, 0.85) !important;
+  background: rgba(255, 255, 255, 1) !important;
   transform: translateY(-2px);
   box-shadow: 0 6px 20px 0 rgba(0, 0, 0, 0.25) !important;
 }

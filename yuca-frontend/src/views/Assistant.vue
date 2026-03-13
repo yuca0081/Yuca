@@ -49,10 +49,11 @@
               class="session-item"
               :class="{ active: session.id === currentSessionId }"
               @click="handleSwitchSession(session.id)"
+              @click.capture="() => console.log('Session item clicked:', session.id)"
             >
               <div class="session-content">
                 <n-icon class="session-icon" :component="ChatboxEllipsesOutline" size="18" />
-                <span class="session-title">{{ session.title }}</span>
+                <span class="session-title">{{ session.title || '新对话' }}</span>
               </div>
               <div class="session-actions" @click.stop>
                 <n-dropdown :options="getSessionOptions(session.id)" @select="handleSessionAction">
@@ -102,7 +103,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { NButton, NIcon, NEmpty, NDropdown } from 'naive-ui'
+import { NButton, NIcon, NEmpty, NDropdown, useDialog } from 'naive-ui'
 import {
   ArrowBackOutline,
   AddCircleOutline,
@@ -117,6 +118,7 @@ import ChatArea from '@/components/assistant/ChatArea.vue'
 
 const router = useRouter()
 const assistantStore = useAssistantStore()
+const dialog = useDialog()
 
 // ========== 侧栏相关 ==========
 const sidebarWidth = ref(20) // 默认20%
@@ -163,7 +165,7 @@ const isLoading = ref(false)
 const filteredSessions = computed(() => {
   if (!searchQuery.value) return sessions.value
   return sessions.value.filter((session) =>
-    session.title.toLowerCase().includes(searchQuery.value.toLowerCase())
+    (session.title || '').toLowerCase().includes(searchQuery.value.toLowerCase())
   )
 })
 
@@ -219,12 +221,7 @@ const resetWidth = () => {
 }
 
 // 会话操作选项
-const getSessionOptions = (sessionId: string) => [
-  {
-    label: '重命名',
-    key: 'rename',
-    sessionId
-  },
+const getSessionOptions = (sessionId: number) => [
   {
     label: '删除',
     key: 'delete',
@@ -235,15 +232,16 @@ const getSessionOptions = (sessionId: string) => [
 // 处理会话操作
 const handleSessionAction = (key: string, option: any) => {
   const sessionId = option.sessionId
-  if (key === 'rename') {
-    const newTitle = prompt('请输入新标题')
-    if (newTitle && newTitle.trim()) {
-      handleRenameSession(sessionId, newTitle.trim())
-    }
-  } else if (key === 'delete') {
-    if (confirm('确定要删除这个对话吗？')) {
-      handleDeleteSession(sessionId)
-    }
+  if (key === 'delete') {
+    dialog.warning({
+      title: '确认删除',
+      content: '确定要删除这个对话吗？删除后无法恢复。',
+      positiveText: '删除',
+      negativeText: '取消',
+      onPositiveClick: () => {
+        handleDeleteSession(sessionId)
+      }
+    })
   }
 }
 
@@ -252,23 +250,24 @@ const goBackHome = () => {
   router.push('/')
 }
 
-// 新建对话
-const handleNewSession = async () => {
-  await assistantStore.createSession()
+// 新建对话（临时会话，不调用接口）
+const handleNewSession = () => {
+  assistantStore.startNewSession()
 }
 
 // 切换对话
-const handleSwitchSession = (sessionId: string) => {
-  assistantStore.switchSession(sessionId)
-}
-
-// 重命名对话
-const handleRenameSession = async (sessionId: string, title: string) => {
-  await assistantStore.renameSession(sessionId, title)
+const handleSwitchSession = async (sessionId: number) => {
+  console.log('handleSwitchSession called with sessionId:', sessionId)
+  try {
+    await assistantStore.switchSession(sessionId)
+    console.log('switchSession completed')
+  } catch (error) {
+    console.error('Error in switchSession:', error)
+  }
 }
 
 // 删除对话
-const handleDeleteSession = async (sessionId: string) => {
+const handleDeleteSession = async (sessionId: number) => {
   await assistantStore.deleteSession(sessionId)
 }
 
@@ -344,10 +343,10 @@ onUnmounted(() => {
   padding: 8px 14px !important;
   font-size: 13px !important;
   height: 36px !important;
-  background: rgba(255, 255, 255, 0.75) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
   backdrop-filter: blur(20px) !important;
   -webkit-backdrop-filter: blur(20px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
   border-radius: 12px !important;
   box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.2) !important;
   color: var(--color-text-primary) !important;
@@ -355,7 +354,7 @@ onUnmounted(() => {
 }
 
 .back-home-btn:hover {
-  background: rgba(255, 255, 255, 0.85) !important;
+  background: rgba(255, 255, 255, 1) !important;
   transform: translateY(-2px);
   box-shadow: 0 6px 20px 0 rgba(0, 0, 0, 0.25) !important;
 }

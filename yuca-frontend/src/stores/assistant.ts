@@ -2,23 +2,35 @@
  * 小助手模块状态管理
  */
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import * as api from '@/api/assistant'
-import type { Session, Message } from '@/types/assistant'
+import type { Session, Message, StreamChunk } from '@/types/assistant'
 
 export const useAssistantStore = defineStore('assistant', () => {
   // ========== 状态 ==========
   const sessions = ref<Session[]>([])
-  const currentSessionId = ref<string>('')
-  const messagesMap = ref<Map<string, Message[]>>(new Map())
+  const currentSessionId = ref<number | null>(null)
+  const messagesMap = ref<Map<number, Message[]>>(new Map())
   const isLoading = ref(false)
+
+  // 临时会话状态：表示用户新建了会话但还没发送消息（未调用接口创建）
+  const isTempSession = ref(false)
+
+  // 打字机效果相关状态
+  const typingTimer = ref<number | null>(null)
+  const typingQueue = ref<string[]>([])  // 待显示的字符队列（已弃用，保留用于兼容）
+  const isTyping = ref(false)  // 是否正在打字中
+  const streamingMessageId = ref<number | null>(null)  // 当前正在流式输出的消息ID
+  const streamingFullText = ref('')  // 当前流式消息的完整文本
 
   // ========== 计算属性 ==========
   const currentSession = computed(() => {
+    if (!currentSessionId.value) return null
     return sessions.value.find(s => s.id === currentSessionId.value) || null
   })
 
   const currentMessages = computed(() => {
+    if (!currentSessionId.value) return []
     return messagesMap.value.get(currentSessionId.value) || []
   })
 
@@ -32,199 +44,263 @@ export const useAssistantStore = defineStore('assistant', () => {
       const data = await api.getSessions()
       sessions.value = data
 
-      // 如果没有当前会话，选择第一个或创建新的
+      // 如果没有当前会话，且有历史会话，选择第一个
       if (!currentSessionId.value && sessions.value.length > 0) {
-        currentSessionId.value = sessions.value[0].id
-        await loadMessages(currentSessionId.value)
-      } else if (sessions.value.length === 0) {
-        await createSession()
+        const firstSession = sessions.value[0]
+        if (firstSession) {
+          currentSessionId.value = firstSession.id
+          await loadMessages(firstSession.id)
+        }
       }
+      // 如果没有历史会话，不自动创建，等待用户手动新建
     } catch (error) {
       console.error('Failed to load sessions:', error)
-      // 如果是开发环境且后端未实现，创建模拟数据
-      if (import.meta.env.DEV) {
-        await createMockSession()
-      }
     }
   }
 
   /**
-   * 创建新会话
+   * 创建新会话（调用后端接口）
    */
-  const createSession = async (title = '新对话') => {
+  const createSession = async () => {
     try {
-      const newSession = await api.createSession({ title })
+      const newSession = await api.createSession({})
       sessions.value.unshift(newSession)
       currentSessionId.value = newSession.id
+      isTempSession.value = false
       messagesMap.value.set(newSession.id, [])
+      return newSession
     } catch (error) {
       console.error('Failed to create session:', error)
-      // 开发环境下使用模拟数据
-      if (import.meta.env.DEV) {
-        const mockSession: Session = {
-          id: `session-${Date.now()}`,
-          title,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        }
-        sessions.value.unshift(mockSession)
-        currentSessionId.value = mockSession.id
-        messagesMap.value.set(mockSession.id, [])
-      }
+      throw error
     }
+  }
+
+  /**
+   * 开始新会话（前端临时状态，不调用接口）
+   */
+  const startNewSession = () => {
+    currentSessionId.value = null
+    isTempSession.value = true
   }
 
   /**
    * 切换会话
    */
-  const switchSession = async (sessionId: string) => {
-    if (currentSessionId.value === sessionId) return
+  const switchSession = async (sessionId: number) => {
+    if (currentSessionId.value === sessionId) {
+      return
+    }
 
     currentSessionId.value = sessionId
+    isTempSession.value = false
 
-    // 如果消息未加载，则加载
-    if (!messagesMap.value.has(sessionId)) {
-      await loadMessages(sessionId)
-    }
+    // 总是重新加载消息，确保显示最新内容
+    await loadMessages(sessionId)
   }
 
   /**
    * 加载会话消息
    */
-  const loadMessages = async (sessionId: string) => {
+  const loadMessages = async (sessionId: number) => {
     try {
-      const messages = await api.getMessages(sessionId)
-      messagesMap.value.set(sessionId, messages)
+      const sessionDetail = await api.getSessionDetail(sessionId)
+      messagesMap.value.set(sessionId, sessionDetail.messages || [])
     } catch (error) {
       console.error('Failed to load messages:', error)
-      // 开发环境下使用空数组
-      if (import.meta.env.DEV && !messagesMap.value.has(sessionId)) {
-        messagesMap.value.set(sessionId, [])
-      }
-    }
-  }
-
-  /**
-   * 重命名会话
-   */
-  const renameSession = async (sessionId: string, title: string) => {
-    try {
-      const updated = await api.renameSession(sessionId, title)
-      const index = sessions.value.findIndex(s => s.id === sessionId)
-      if (index !== -1) {
-        sessions.value[index] = updated
-      }
-    } catch (error) {
-      console.error('Failed to rename session:', error)
-      // 开发环境下直接更新
-      if (import.meta.env.DEV) {
-        const session = sessions.value.find(s => s.id === sessionId)
-        if (session) {
-          session.title = title
-          session.updatedAt = Date.now()
-        }
-      }
     }
   }
 
   /**
    * 删除会话
    */
-  const deleteSession = async (sessionId: string) => {
+  const deleteSession = async (sessionId: number) => {
     try {
       await api.deleteSession(sessionId)
       sessions.value = sessions.value.filter(s => s.id !== sessionId)
       messagesMap.value.delete(sessionId)
 
-      // 如果删除的是当前会话，切换到其他会话
+      // 如果删除的是当前会话，切换到其他会话或进入临时会话状态
       if (currentSessionId.value === sessionId) {
-        if (sessions.value.length > 0) {
-          await switchSession(sessions.value[0].id)
+        const firstSession = sessions.value[0]
+        if (firstSession) {
+          await switchSession(firstSession.id)
         } else {
-          await createSession()
+          // 没有其他会话了，进入临时会话状态
+          startNewSession()
         }
       }
     } catch (error) {
       console.error('Failed to delete session:', error)
-      // 开发环境下直接删除
-      if (import.meta.env.DEV) {
-        sessions.value = sessions.value.filter(s => s.id !== sessionId)
-        messagesMap.value.delete(sessionId)
+      throw error
+    }
+  }
 
-        if (currentSessionId.value === sessionId) {
-          if (sessions.value.length > 0) {
-            await switchSession(sessions.value[0].id)
-          } else {
-            await createSession()
-          }
-        }
+  /**
+   * 打字机效果：启动打字（从完整文本中截取显示）
+   * 参考实现：使用两个变量，streamingFullText存储完整文本，显示时截取前N个字符
+   * 修复：使用Array.from正确处理emoji等Unicode字符
+   * @param targetMessageId 目标消息ID
+   */
+  const startTyping = (targetMessageId: number) => {
+    // 清除之前的定时器，避免重复执行
+    if (typingTimer.value !== null) {
+      clearTimeout(typingTimer.value)
+    }
+
+    const messages = currentMessages.value
+    const aiMsgIndex = messages.findIndex(m => m.id === targetMessageId)
+
+    if (aiMsgIndex === -1) {
+      console.error('[打字机] 未找到目标消息')
+      return
+    }
+
+    // ✅ 使用Array.from正确分割Unicode字符（处理emoji、代理对等）
+    const fullChars = Array.from(streamingFullText.value)
+    const displayChars = Array.from(messages[aiMsgIndex]!.content)
+
+    if (displayChars.length < fullChars.length) {
+      // 设置打字状态
+      if (!isTyping.value) {
+        isTyping.value = true
+        streamingMessageId.value = targetMessageId
+      }
+
+      // 每次增加一个字符（按完整的Unicode字符）
+      messages[aiMsgIndex]!.content = fullChars.slice(0, displayChars.length + 1).join('')
+
+      console.log(`[打字机] 显示字符 #${displayChars.length + 1}: "${fullChars[displayChars.length]}"，进度: ${displayChars.length + 1}/${fullChars.length}`)
+
+      // 控制打字速度（30ms/字符）
+      const delay = 30
+      typingTimer.value = window.setTimeout(() => startTyping(targetMessageId), delay)
+    } else {
+      // 打字结束 - 一次性设置完整文本，确保emoji正确显示
+      messages[aiMsgIndex]!.content = streamingFullText.value
+
+      isTyping.value = false
+      streamingMessageId.value = null
+      typingTimer.value = null
+      console.log(`[打字机] ✓ 打字完成，共显示 ${fullChars.length} 个字符`)
+    }
+  }
+
+  /**
+   * 打字机效果：将字符加入队列
+   * @param chars 字符数组
+   */
+  const enqueueChars = (chars: string[]) => {
+    typingQueue.value.push(...chars)
+
+    // 如果当前没有在打字，启动打字
+    if (!isTyping.value && typingQueue.value.length > 0) {
+      // 需要知道目标消息ID，这里通过当前消息列表最后一条AI消息来获取
+      const messages = currentMessages.value
+      const lastAiMessage = messages.filter(m => m.role === 'assistant').pop()
+      if (lastAiMessage) {
+        startTyping(lastAiMessage.id)
       }
     }
+  }
+
+  /**
+   * 打字机效果：停止打字
+   */
+  const stopTyping = () => {
+    if (typingTimer.value !== null) {
+      clearTimeout(typingTimer.value)
+      typingTimer.value = null
+    }
+    isTyping.value = false
+    typingQueue.value = []
   }
 
   /**
    * 发送消息（流式）
    */
   const sendMessage = async (content: string) => {
-    if (!currentSessionId.value || isLoading.value) return
+    if (isLoading.value) return
+
+    // 如果是临时会话，先创建会话
+    if (isTempSession.value) {
+      try {
+        await createSession()
+      } catch (error) {
+        console.error('Failed to create session before sending message:', error)
+        return
+      }
+    }
+
+    if (!currentSessionId.value) return
 
     // 添加用户消息
     const userMessage: Message = {
-      id: `msg-${Date.now()}-user`,
-      sessionId: currentSessionId.value,
+      id: Date.now(),
       role: 'user',
       content,
-      timestamp: Date.now()
+      createdAt: new Date().toISOString()
     }
 
     const messages = currentMessages.value
     messages.push(userMessage)
 
     // 创建 AI 消息占位
+    const aiMessageId = Date.now() + 1
     const aiMessage: Message = {
-      id: `msg-${Date.now()}-ai`,
-      sessionId: currentSessionId.value,
+      id: aiMessageId,
       role: 'assistant',
       content: '',
-      timestamp: Date.now()
+      createdAt: new Date().toISOString()
     }
     messages.push(aiMessage)
 
     isLoading.value = true
 
+    // 重置打字机状态
+    streamingFullText.value = ''
+    startTyping(aiMessageId)
+
     try {
       await api.sendMessage(
         currentSessionId.value,
         { content },
-        // onChunk: 接收流式数据
-        (chunk: string) => {
-          aiMessage.content += chunk
+        // onMessage: SSE消息回调（累加到完整文本）
+        (chunk: StreamChunk) => {
+          if (chunk.type === 'token' && chunk.content) {
+            // 累加到完整文本
+            streamingFullText.value += chunk.content
+
+            // 每次收到新token都触发打字机效果
+            startTyping(aiMessageId)
+
+            console.log(`[打字机] 收到token: "${chunk.content}", 完整文本长度: ${streamingFullText.value.length}`)
+          }
         },
         // onComplete: 完成
         () => {
           isLoading.value = false
+          // 等待打字队列清空
+          console.log('[打字机] Stream完成，等待打字队列清空...')
         },
         // onError: 错误
         (error: Error) => {
           isLoading.value = false
-          aiMessage.content = '抱歉，出现了错误，请稍后重试。'
-          console.error('Stream error:', error)
-
-          // 开发环境下使用模拟响应
-          if (import.meta.env.DEV) {
-            simulateAIResponse(aiMessage)
+          stopTyping()
+          const aiMsgIndex = messages.findIndex(m => m.id === aiMessageId)
+          if (aiMsgIndex !== -1) {
+            messages[aiMsgIndex]!.content = '抱歉，出现了错误，请稍后重试。'
           }
+          console.error('Stream error:', error)
         }
       )
     } catch (error) {
       isLoading.value = false
-      aiMessage.content = '抱歉，无法连接到服务器。'
-      console.error('Send message error:', error)
-
-      // 开发环境下使用模拟响应
-      if (import.meta.env.DEV) {
-        simulateAIResponse(aiMessage)
+      stopTyping()
+      const aiMsgIndex = messages.findIndex(m => m.id === aiMessageId)
+      if (aiMsgIndex !== -1) {
+        messages[aiMsgIndex]!.content = '抱歉，无法连接到服务器。'
       }
+      console.error('Send message error:', error)
     }
   }
 
@@ -233,50 +309,7 @@ export const useAssistantStore = defineStore('assistant', () => {
    */
   const stopStreaming = () => {
     isLoading.value = false
-  }
-
-  // ========== 辅助函数 ==========
-
-  /**
-   * 创建模拟会话（开发环境）
-   */
-  const createMockSession = async () => {
-    const mockSession: Session = {
-      id: `session-${Date.now()}`,
-      title: '新对话',
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    }
-    sessions.value.unshift(mockSession)
-    currentSessionId.value = mockSession.id
-    messagesMap.value.set(mockSession.id, [])
-  }
-
-  /**
-   * 模拟 AI 响应（开发环境）
-   */
-  const simulateAIResponse = (message: Message) => {
-    const responses = [
-      '你好！我是小助手，有什么可以帮助你的吗？',
-      '这是一个很好的问题！让我来帮你解答。',
-      '我理解你的需求，这里有一些建议...',
-      '根据你的描述，我建议你可以尝试以下方法。',
-      '这个问题涉及到多个方面，让我逐一为你分析。'
-    ]
-
-    const response = responses[Math.floor(Math.random() * responses.length)]
-
-    // 模拟打字机效果
-    let index = 0
-    const interval = setInterval(() => {
-      if (index < response.length) {
-        message.content += response[index]
-        index++
-      } else {
-        clearInterval(interval)
-        isLoading.value = false
-      }
-    }, 50)
+    stopTyping()
   }
 
   return {
@@ -286,12 +319,14 @@ export const useAssistantStore = defineStore('assistant', () => {
     currentSession,
     currentMessages,
     isLoading,
+    isTempSession,
+    streamingMessageId,
 
     // Actions
     loadSessions,
     createSession,
+    startNewSession,
     switchSession,
-    renameSession,
     deleteSession,
     sendMessage,
     stopStreaming

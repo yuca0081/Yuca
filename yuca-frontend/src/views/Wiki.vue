@@ -4,7 +4,7 @@
     <!-- 返回主页按钮 -->
     <n-button class="back-home-btn" @click="goBackHome">
       <template #icon>
-        <n-icon :component="ArrowBackOutline" size="18" />
+        <n-icon :component="ArrowBack" size="18" />
       </template>
       <span>返回主页</span>
     </n-button>
@@ -21,7 +21,7 @@
               <span v-else>{{ userInitial }}</span>
             </div>
             <div class="create-icon" @click="showCreateKbModal = true">
-              <n-icon :component="AddCircleOutline" size="24" />
+              <n-icon :component="AddCircle" size="24" />
             </div>
           </div>
         </div>
@@ -29,7 +29,7 @@
         <!-- 搜索栏 -->
         <div class="sidebar-search" v-show="!isCollapsed">
           <div class="search-box">
-            <n-icon :component="SearchOutline" class="search-icon" size="16" />
+            <n-icon :component="Search" class="search-icon" size="16" />
             <input
               ref="searchInputRef"
               type="text"
@@ -78,7 +78,7 @@
                     class="kb-menu-btn"
                     @click.stop="showKbMenu(kb, $event)"
                   >
-                    <n-icon :component="EllipsisHorizontalOutline" size="16" />
+                    <n-icon :component="EllipsisHorizontal" size="16" />
                   </div>
                 </n-dropdown>
               </div>
@@ -101,7 +101,7 @@
         <div class="divider-line"></div>
         <!-- 折叠按钮 -->
         <div class="collapse-toggle-btn" @click.stop="toggleSidebar">
-          <n-icon :component="isCollapsed ? ChevronForwardOutline : ChevronBackOutline" size="14" />
+          <n-icon :component="isCollapsed ? ChevronForward : ChevronBack" size="14" />
         </div>
       </div>
 
@@ -123,7 +123,7 @@
                   @click="viewMode = 'grid'"
                 >
                   <template #icon>
-                    <n-icon :component="GridOutline" size="18" />
+                    <n-icon :component="Grid" size="18" />
                   </template>
                 </n-button>
                 <n-button
@@ -133,7 +133,7 @@
                   @click="viewMode = 'list'"
                 >
                   <template #icon>
-                    <n-icon :component="ListOutline" size="18" />
+                    <n-icon :component="List" size="18" />
                   </template>
                 </n-button>
               </div>
@@ -146,7 +146,7 @@
               <h3 class="section-title">常用</h3>
               <div class="collapse-btn" @click="toggleCommonCollapse">
                 <span>{{ commonCollapsed ? '展开' : '收起' }}</span>
-                <n-icon :component="commonCollapsed ? ChevronDownOutline : ChevronUpOutline" size="14" />
+                <n-icon :component="commonCollapsed ? ChevronDown : ChevronUp" size="14" />
               </div>
             </div>
 
@@ -186,14 +186,14 @@
             <h3 class="content-title">{{ selectedKb.name }}</h3>
             <n-button text size="small" class="upload-doc-btn" @click="showUploadModal = true">
               <template #icon>
-                <n-icon :component="CloudUploadOutline" />
+                <n-icon :component="CloudUpload" />
               </template>
               上传文档
             </n-button>
           </div>
 
-          <div class="doc-list" :class="{ 'has-docs': documents.length > 0 }">
-            <n-spin :show="docLoading">
+          <n-spin :show="docLoading">
+            <div class="doc-list" :class="{ 'has-docs': documents.length > 0 }">
               <div v-if="documents.length === 0 && !docLoading" class="doc-empty-wrapper">
                 <n-empty description="暂无文档" />
               </div>
@@ -204,7 +204,7 @@
                 @click="viewChunks(doc)"
               >
                 <div class="doc-icon">
-                  <n-icon :component="FileTrayOutline" />
+                  <n-icon :component="FileTray" />
                 </div>
                 <div class="doc-name">{{ doc.docName }}</div>
                 <div class="doc-meta">
@@ -212,9 +212,26 @@
                   <span>{{ formatFileSize(doc.docSize) }}</span>
                   <span>{{ doc.chunkCount }} 个切片</span>
                 </div>
+                <div class="doc-menu-wrapper">
+                  <n-dropdown
+                    :show="showDocDropdown && currentDocForMenu?.id === doc.id"
+                    :options="docDropdownOptions"
+                    @select="handleDocDropdownSelect"
+                    @clickoutside="showDocDropdown = false"
+                    placement="right-start"
+                    trigger="manual"
+                  >
+                    <div
+                      class="doc-menu-btn"
+                      @click.stop="showDocMenu(doc, $event)"
+                    >
+                      <n-icon :component="EllipsisHorizontal" size="16" />
+                    </div>
+                  </n-dropdown>
+                </div>
               </div>
-            </n-spin>
-          </div>
+            </div>
+          </n-spin>
         </div>
 
         <!-- 切片视图 -->
@@ -223,7 +240,7 @@
             <div class="header-left">
               <n-button text @click="activeView = 'docs'">
                 <template #icon>
-                  <n-icon :component="ArrowBackOutline" />
+                  <n-icon :component="ArrowBack" />
                 </template>
                 返回
               </n-button>
@@ -231,9 +248,9 @@
             </div>
           </div>
 
-          <div class="chunks-grid">
-            <n-spin :show="chunkLoading">
-              <n-empty v-if="chunks.length === 0 && !chunkLoading" description="暂无切片" />
+          <n-spin :show="chunkLoading">
+            <div class="chunks-grid">
+              <n-empty v-if="chunks.length === 0 && !chunkLoading" description="暂无切片" style="grid-column: 1/-1;" />
               <div
                 v-for="chunk in chunks"
                 :key="chunk.id"
@@ -244,8 +261,8 @@
                   <span class="chunk-id">#{{ chunk.chunkIndex + 1 }}</span>
                 </div>
               </div>
-            </n-spin>
-          </div>
+            </div>
+          </n-spin>
         </div>
 
         <!-- 空状态 -->
@@ -281,26 +298,32 @@
 
     <!-- 上传文档弹窗 -->
     <n-modal v-model:show="showUploadModal" preset="card" title="上传文档" style="width: 500px">
-      <n-upload
-        :custom-request="handleUpload"
-        :show-file-list="false"
-        accept=".md,.txt,.pdf"
-        :max="1"
-      >
-        <n-upload-dragger>
-          <div style="margin-bottom: 12px">
-            <n-icon :component="CloudUploadOutline" size="48" :depth="3" />
-          </div>
-          <n-text style="font-size: 16px">
-            点击或拖拽文件到此区域上传
-          </n-text>
-          <n-p depth="3" style="margin: 8px 0 0 0">
-            支持 Markdown、TXT、PDF 格式，文件大小不超过 50MB
-          </n-p>
-        </n-upload-dragger>
-      </n-upload>
+      <n-spin :show="uploadLoading" description="正在上传并处理文档，请稍候..." style="--n-text-color: #000;">
+        <n-upload
+          :custom-request="handleUpload"
+          :show-file-list="false"
+          accept=".md,.txt,.pdf"
+          :max="1"
+          :disabled="uploadLoading"
+        >
+          <n-upload-dragger :class="{ 'upload-disabled': uploadLoading }">
+            <div style="margin-bottom: 12px">
+              <n-icon :component="uploadLoading ? CloudUpload : CloudUpload" size="48" :depth="uploadLoading ? 1 : 3" />
+            </div>
+            <n-text style="font-size: 16px">
+              {{ uploadLoading ? '正在处理中...' : '点击或拖拽文件到此区域上传' }}
+            </n-text>
+            <n-p depth="3" style="margin: 8px 0 0 0">
+              支持 Markdown、TXT、PDF 格式，文件大小不超过 50MB
+            </n-p>
+            <n-p depth="3" style="margin: 4px 0 0 0" v-if="!uploadLoading">
+              文档上传后会进行向量化处理，可能需要一些时间
+            </n-p>
+          </n-upload-dragger>
+        </n-upload>
+      </n-spin>
       <template #footer>
-        <n-button @click="showUploadModal = false">关闭</n-button>
+        <n-button @click="showUploadModal = false" :disabled="uploadLoading">关闭</n-button>
       </template>
     </n-modal>
 
@@ -346,24 +369,24 @@ import * as knowledgeApi from '@/api/knowledge'
 import type { KnowledgeBase, KnowledgeDoc, KnowledgeChunk } from '@/types/knowledge'
 import KnowledgeCard from '@/components/KnowledgeCard.vue'
 import {
-  AddOutline,
-  AddCircleOutline,
-  CloudUploadOutline,
-  DocumentTextOutline,
-  DocumentOutline,
-  CopyOutline,
-  FileTrayOutline,
-  ArrowBackOutline,
-  FolderOutline,
-  ChevronForwardOutline,
-  ChevronBackOutline,
-  ChevronDownOutline,
-  ChevronUpOutline,
-  NotificationsOutline,
-  SearchOutline,
-  GridOutline,
-  ListOutline,
-  EllipsisHorizontalOutline
+  Add,
+  AddCircle,
+  CloudUpload,
+  DocumentText,
+  Document,
+  Copy,
+  FileTray,
+  ArrowBack,
+  Folder,
+  ChevronForward,
+  ChevronBack,
+  ChevronDown,
+  ChevronUp,
+  Notifications,
+  Search,
+  Grid,
+  List,
+  EllipsisHorizontal
 } from '@vicons/ionicons5'
 
 const router = useRouter()
@@ -412,7 +435,7 @@ const searchQuery = ref('')
 
 // 导航菜单
 const navItems = ref([
-  { key: 'knowledge', label: '知识库', icon: FolderOutline }
+  { key: 'knowledge', label: '知识库', icon: Folder }
   // 可以扩展其他菜单项
 ])
 const activeNav = ref('knowledge')
@@ -467,11 +490,16 @@ const createRules = {
 
 // 上传文档弹窗
 const showUploadModal = ref(false)
+const uploadLoading = ref(false)
 
 // 下拉菜单相关
 const showDropdown = ref(false)
 const hoveredKbId = ref<number | null>(null)
 const currentKbForMenu = ref<KnowledgeBase | null>(null)
+
+// 文档下拉菜单相关
+const showDocDropdown = ref(false)
+const currentDocForMenu = ref<KnowledgeDoc | null>(null)
 
 // 重命名弹窗
 const showRenameModal = ref(false)
@@ -655,6 +683,8 @@ const handleUpload = async (options: UploadCustomRequestOptions) => {
     return
   }
 
+  uploadLoading.value = true
+
   try {
     const file = options.file.file as File
     await knowledgeApi.uploadDocument(selectedKbId.value, file)
@@ -663,9 +693,19 @@ const handleUpload = async (options: UploadCustomRequestOptions) => {
     await loadDocuments()
     const docs = await knowledgeApi.getDocumentList(selectedKbId.value, 1, 1000)
     allDocuments.value.set(selectedKbId.value, docs.records)
-  } catch (error) {
+  } catch (error: any) {
     console.error('文档上传失败:', error)
-    message.error('文档上传失败')
+    // 关闭弹框并显示错误信息
+    showUploadModal.value = false
+
+    // 判断是否是超时错误
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      message.warning('请求超时，但文档可能已成功上传，请刷新页面查看')
+    } else {
+      message.error(error.message || '文档上传失败')
+    }
+  } finally {
+    uploadLoading.value = false
   }
 }
 
@@ -682,6 +722,14 @@ const dropdownOptions = [
     label: '编辑',
     key: 'rename'
   },
+  {
+    label: '删除',
+    key: 'delete'
+  }
+]
+
+// 文档下拉菜单选项
+const docDropdownOptions = [
   {
     label: '删除',
     key: 'delete'
@@ -754,6 +802,50 @@ const handleRenameKb = async () => {
   } finally {
     renameLoading.value = false
   }
+}
+
+// 显示文档菜单
+const showDocMenu = (doc: KnowledgeDoc, e: MouseEvent) => {
+  e.stopPropagation()
+  currentDocForMenu.value = doc
+  showDocDropdown.value = true
+}
+
+// 处理文档下拉菜单选择
+const handleDocDropdownSelect = (key: string) => {
+  if (!currentDocForMenu.value) return
+
+  if (key === 'delete') {
+    handleDeleteDoc(currentDocForMenu.value)
+  }
+  showDocDropdown.value = false
+}
+
+// 删除文档
+const handleDeleteDoc = async (doc: KnowledgeDoc) => {
+  dialog.warning({
+    title: '删除文档',
+    content: `确定要删除文档"${doc.docName}"吗？此操作不可恢复。`,
+    positiveText: '删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await knowledgeApi.deleteDocuments([doc.id])
+        message.success('文档删除成功')
+
+        // 如果删除的是当前选中的文档，清除选中状态
+        if (selectedDoc.value?.id === doc.id) {
+          selectedDoc.value = null
+          activeView.value = 'docs'
+        }
+
+        await loadDocuments()
+      } catch (error: any) {
+        console.error('删除文档失败:', error)
+        message.error(error.message || '删除文档失败')
+      }
+    }
+  })
 }
 
 // 开始拖动调整宽度
@@ -861,10 +953,10 @@ onUnmounted(() => {
   padding: 8px 14px !important;
   font-size: 13px !important;
   height: 36px !important;
-  background: rgba(255, 255, 255, 0.75) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
   backdrop-filter: blur(20px) !important;
   -webkit-backdrop-filter: blur(20px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
   border-radius: 12px !important;
   box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.2) !important;
   color: var(--color-text-primary) !important;
@@ -872,7 +964,7 @@ onUnmounted(() => {
 }
 
 .back-home-btn:hover {
-  background: rgba(255, 255, 255, 0.85) !important;
+  background: rgba(255, 255, 255, 1) !important;
   transform: translateY(-2px);
   box-shadow: 0 6px 20px 0 rgba(0, 0, 0, 0.25) !important;
 }
@@ -1406,7 +1498,7 @@ onUnmounted(() => {
 .doc-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .doc-list:not(.has-docs) {
@@ -1434,6 +1526,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+  position: relative;
 }
 
 .doc-card:hover {
@@ -1475,11 +1568,39 @@ onUnmounted(() => {
   align-items: center;
 }
 
+.doc-menu-wrapper {
+  position: relative;
+  margin-left: auto;
+}
+
+.doc-menu-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  opacity: 0;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.doc-card:hover .doc-menu-btn,
+.doc-menu-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.doc-menu-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
 /* 切片网格 - 增加间距，减少悬浮效果 */
 .chunks-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 40px;
 }
 
 .chunk-card {
@@ -1487,17 +1608,16 @@ onUnmounted(() => {
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 12px;
-  padding: 20px;
-  min-height: 150px;
-  transition: all 0.2s ease;
+  padding: 18px;
+  min-height: 140px;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   cursor: pointer;
 }
 
 .chunk-card:hover {
   background: rgba(128, 128, 128, 0.15);
   border-color: rgba(128, 128, 128, 0.25);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.1);
 }
 
 .chunk-card:active {
@@ -1580,12 +1700,12 @@ onUnmounted(() => {
 
   .doc-list {
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
   }
 
   .chunks-grid {
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
+    gap: 32px;
   }
 
   .kb-grid {
@@ -1630,7 +1750,7 @@ onUnmounted(() => {
 
   .doc-list {
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
   }
 
   .doc-card {
@@ -1639,7 +1759,7 @@ onUnmounted(() => {
 
   .chunks-grid {
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 24px;
   }
 
   .kb-grid {
@@ -1712,6 +1832,23 @@ onUnmounted(() => {
 /* 上传区域圆角 */
 :deep(.n-upload-dragger) {
   border-radius: 16px !important;
+}
+
+/* 上传区域禁用状态 */
+.upload-disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+}
+
+.upload-disabled :deep(.n-upload-dragger) {
+  background: rgba(0, 0, 0, 0.02) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* 上传加载动画文字颜色 */
+:deep(.n-spin__description) {
+  color: #000 !important;
 }
 
 /* 输入框 focus 样式 */

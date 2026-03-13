@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.yuca.knowledge.mapper.KnowledgeChunkMapper">
+
+    <resultMap id="BaseResultMap" type="org.yuca.knowledge.entity.KnowledgeChunk">
+        <id column="id" property="id"/>
+        <result column="doc_id" property="docId"/>
+        <result column="kb_id" property="kbId"/>
+        <result column="content" property="content"/>
+        <result column="embedding" property="embedding" typeHandler="org.yuca.knowledge.handler.PGVectorTypeHandler"/>
+        <result column="chunk_index" property="chunkIndex"/>
+        <result column="is_active" property="isActive"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <!-- 向量相似度搜索（限定知识库） -->
+    <select id="searchSimilar" resultMap="BaseResultMap">
+        SELECT
+            id, doc_id, kb_id, content, embedding, chunk_index, is_active,
+            created_at, updated_at, deleted
+        FROM knowledge_chunk
+        WHERE deleted = FALSE
+          AND is_active = TRUE
+          AND kb_id = #{kbId}
+          AND embedding IS NOT NULL
+          AND 1 - (embedding &lt;=&gt; CAST(#{queryEmbedding} AS vector)) &gt;= #{threshold}
+        ORDER BY embedding &lt;=&gt; CAST(#{queryEmbedding} AS vector)
+        LIMIT #{topK}
+    </select>
+
+    <!-- 全局向量相似度搜索（不限制知识库） -->
+    <select id="searchSimilarGlobal" resultMap="BaseResultMap">
+        SELECT
+            id, doc_id, kb_id, content, embedding, chunk_index, is_active,
+            created_at, updated_at, deleted
+        FROM knowledge_chunk
+        WHERE deleted = FALSE
+          AND is_active = TRUE
+          AND embedding IS NOT NULL
+          AND 1 - (embedding &lt;=&gt; CAST(#{queryEmbedding} AS vector)) &gt;= #{threshold}
+        ORDER BY embedding &lt;=&gt; CAST(#{queryEmbedding} AS vector)
+        LIMIT #{topK}
+    </select>
+
+</mapper>

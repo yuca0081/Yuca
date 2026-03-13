@@ -15,7 +15,7 @@ type RequestInstance = Omit<AxiosInstance, 'get' | 'post' | 'put' | 'delete' | '
 // 创建 Axios 实例
 const request = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
-  timeout: 10000,
+  timeout: 60000, // 文档上传可能需要较长时间（向量生成），增加到60秒
   headers: {
     'Content-Type': 'application/json'
   }

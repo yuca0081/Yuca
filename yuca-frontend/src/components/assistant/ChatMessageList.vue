@@ -15,7 +15,7 @@
         v-for="message in messages"
         :key="message.id"
         :message="message"
-        :streaming="loading && message === lastMessage"
+        :streaming="message.id === streamingMessageId"
       />
     </template>
 
@@ -34,6 +34,7 @@ import { NIcon } from 'naive-ui'
 import { ChatboxEllipses as RobotIcon } from '@vicons/ionicons5'
 import type { Message } from '@/types/assistant'
 import ChatMessage from './ChatMessage.vue'
+import { useAssistantStore } from '@/stores/assistant'
 
 interface Props {
   messages: Message[]
@@ -41,6 +42,9 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+
+const assistantStore = useAssistantStore()
+const streamingMessageId = computed(() => assistantStore.streamingMessageId)
 
 const containerRef = ref<HTMLElement>()
 

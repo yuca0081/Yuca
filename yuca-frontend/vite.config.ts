@@ -16,7 +16,20 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8500',
         changeOrigin: true,
-        rewrite: (path) => path
+        rewrite: (path) => path,
+        // 支持SSE流式传输
+        selfHandleResponse: false,
+        configure: (proxy, _options) => {
+          proxy.on('proxyRes', (proxyRes, _req, _res) => {
+            // 确保SSE响应不被缓冲
+            if (proxyRes.headers['content-type']?.includes('text/event-stream')) {
+              proxyRes.headers['cache-control'] = 'no-cache';
+              proxyRes.headers['connection'] = 'keep-alive';
+              // 禁用缓冲
+              proxyRes.pause = () => {}; // 阻止暂停
+            }
+          });
+        }
       }
     }
   }
