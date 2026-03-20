@@ -11,7 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
  * @author Yuca
  * @since 2025-01-27
  */
-public interface IAITool {
+public interface AITool {
 
     /**
      * 获取工具名称（唯一标识）

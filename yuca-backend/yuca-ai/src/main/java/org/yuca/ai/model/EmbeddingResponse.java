@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 /**
- * AI 向量嵌入响应
+ * Embedding响应（兼容OpenAI格式）
  *
  * @author Yuca
  * @since 2025-01-27
@@ -20,37 +20,69 @@ import java.util.List;
 public class EmbeddingResponse {
 
     /**
-     * 嵌入结果列表
+     * 对象类型
      */
-    private List<EmbeddingResult> results;
+    private String object;
 
     /**
-     * 使用的模型
+     * 模型名称
      */
     private String model;
 
     /**
-     * Token 使用情况（可选）
+     * 嵌入结果列表
      */
-    private ChatResponse.Usage usage;
+    private List<EmbeddingData> data;
 
     /**
-     * 单个嵌入结果
+     * Token使用统计
+     */
+    private BaseChatResponse.Usage usage;
+
+    // ========== 充血方法 ==========
+
+    /**
+     * 获取第一个嵌入向量（便捷方法，用于单条嵌入）
+     */
+    public List<Double> getSingleEmbedding() {
+        if (data == null || data.isEmpty()) {
+            return null;
+        }
+        return data.getFirst().getEmbedding();
+    }
+
+    /**
+     * 获取第一个嵌入向量数组形式（便捷方法）
+     */
+    public Double[] getEmbeddingArray() {
+        List<Double> embedding = getSingleEmbedding();
+        if (embedding == null) {
+            return null;
+        }
+        return embedding.toArray(new Double[0]);
+    }
+
+    /**
+     * 嵌入数据
      */
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class EmbeddingResult {
-
-        /**
-         * 向量数组（使用Double保持精度）
-         */
-        private Double[] embedding;
-
+    public static class EmbeddingData {
         /**
          * 索引
          */
         private Integer index;
+
+        /**
+         * 嵌入向量
+         */
+        private List<Double> embedding;
+
+        /**
+         * 对象类型
+         */
+        private String object;
     }
 }

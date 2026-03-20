@@ -108,6 +108,39 @@ public class AIToolParameters {
     }
 
     /**
+     * 转换为 Map（用于序列化为 JSON）
+     *
+     * @return JSON Schema 格式的 Map
+     */
+    public Map<String, Object> toMap() {
+        // 如果没有任何参数定义，返回空对象（符合官方文档格式）
+        if ((properties == null || properties.isEmpty()) && (required == null || required.isEmpty())) {
+            return new LinkedHashMap<>();
+        }
+
+        // 有参数定义时，返回完整的 JSON Schema
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("type", type);
+
+        if (properties != null && !properties.isEmpty()) {
+            Map<String, Object> propertiesMap = new LinkedHashMap<>();
+            for (Map.Entry<String, ParameterProperty> entry : properties.entrySet()) {
+                Map<String, Object> propertyMap = new LinkedHashMap<>();
+                propertyMap.put("type", entry.getValue().getType());
+                propertyMap.put("description", entry.getValue().getDescription());
+                propertiesMap.put(entry.getKey(), propertyMap);
+            }
+            map.put("properties", propertiesMap);
+        }
+
+        if (required != null && !required.isEmpty()) {
+            map.put("required", required);
+        }
+
+        return map;
+    }
+
+    /**
      * 参数属性定义
      */
     @Data

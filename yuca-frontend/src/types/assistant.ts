@@ -26,6 +26,11 @@ export interface Message {
   role: MessageRole
   content: string
   createdAt: string
+  thinkingContent?: string  // 深度思考内容
+  inputTokens?: number      // 输入token数
+  outputTokens?: number     // 输出token数
+  thinkingTokens?: number   // 深度思考token数
+  totalTokens?: number      // 总token数
 }
 
 // 创建会话 DTO
@@ -36,18 +41,23 @@ export interface CreateSessionDto {
 // 发送消息 DTO
 export interface SendMessageDto {
   content: string
+  enableThinking?: boolean
+  enableSearch?: boolean
 }
 
 // 流式数据块类型
-export type StreamChunkType = 'start' | 'token' | 'done' | 'error'
+export type StreamChunkType = 'start' | 'thinking' | 'token' | 'done' | 'error'
 
 // 流式数据块
 export interface StreamChunk {
   type: StreamChunkType
-  content?: string        // token 事件的内容片段
+  content?: string        // token/thinking 事件的内容片段
   messageId?: number      // start/done 事件的消息ID
   fullMessage?: string    // done 事件的完整消息
   message?: string        // error 事件的错误信息
+  inputTokens?: number    // done 事件的输入token数
+  outputTokens?: number   // done 事件的输出token数
+  totalTokens?: number    // done 事件的总token数
 }
 
 // 侧边栏会话操作类型

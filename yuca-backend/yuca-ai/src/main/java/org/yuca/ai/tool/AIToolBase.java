@@ -13,7 +13,7 @@ import lombok.extern.slf4j.Slf4j;
  * @since 2025-01-27
  */
 @Slf4j
-public abstract class AIToolBase implements IAITool {
+public abstract class AIToolBase implements AITool {
 
     /**
      * 子类实现此方法，可以注入任意 Spring Bean

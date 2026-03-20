@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import org.yuca.assistant.dto.request.ChatRequest;
+import org.yuca.assistant.dto.request.AssistantChatRequest;
 import org.yuca.assistant.dto.request.CreateSessionRequest;
 import org.yuca.assistant.dto.response.SessionDTO;
 import org.yuca.assistant.service.AssistantService;
@@ -37,7 +37,7 @@ public class AssistantController {
      * 发送消息（SSE流式响应）
      */
     @PostMapping("/chat")
-    public SseEmitter chat(@RequestBody @Valid ChatRequest request, HttpServletResponse response) throws IOException {
+    public SseEmitter chat(@RequestBody @Valid AssistantChatRequest request, HttpServletResponse response) throws IOException {
         Long userId = SecurityUtils.getCurrentUserId();
         log.info("收到聊天请求 - 用户ID: {}, 会话ID: {}", userId, request.getSessionId());
 
@@ -61,7 +61,6 @@ public class AssistantController {
         emitter.onTimeout(() -> log.warn("SSE连接超时"));
         emitter.onCompletion(() -> log.info("SSE连接完成"));
 
-        // ✅ 关键修复：异步处理，立即返回emitter建立HTTP连接
         // 这样客户端可以立即开始接收SSE事件，而不是等待AI响应完成
         CompletableFuture.runAsync(() -> {
             try {

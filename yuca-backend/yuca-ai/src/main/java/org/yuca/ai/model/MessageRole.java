@@ -1,25 +1,19 @@
 package org.yuca.ai.model;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-
 /**
- * AI 消息角色枚举
+ * AI消息角色枚举
  *
  * @author Yuca
  * @since 2025-01-27
  */
-@Getter
-@AllArgsConstructor
 public enum MessageRole {
-
     /**
      * 用户
      */
     USER("user"),
 
     /**
-     * 助手
+     * AI助手
      */
     ASSISTANT("assistant"),
 
@@ -33,8 +27,13 @@ public enum MessageRole {
      */
     TOOL("tool");
 
-    /**
-     * 角色代码
-     */
-    private final String code;
+    private final String role;
+
+    MessageRole(String role) {
+        this.role = role;
+    }
+
+    public String getRole(){
+        return this.role;
+    }
 }

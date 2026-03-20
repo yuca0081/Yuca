@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChatRequest {
+public class AssistantChatRequest {
 
     /**
      * 会话ID
@@ -37,4 +37,14 @@ public class ChatRequest {
      * 模型名称（可选，覆盖会话的默认模型）
      */
     private String modelName;
+
+    /**
+     * 是否启用深度思考模式
+     */
+    private Boolean enableThinking;
+
+    /**
+     * 是否启用联网搜索
+     */
+    private Boolean enableSearch;
 }

@@ -24,14 +24,14 @@ public class AIToolRegistry {
     /**
      * 工具存储（线程安全）
      */
-    private final Map<String, IAITool> tools = new ConcurrentHashMap<>();
+    private final Map<String, AITool> tools = new ConcurrentHashMap<>();
 
     /**
      * 注册工具
      *
      * @param tool 工具实例
      */
-    public void register(IAITool tool) {
+    public void register(AITool tool) {
         tools.put(tool.getName(), tool);
         log.info("注册 AI 工具: {} - {}", tool.getName(), tool.getDescription());
     }
@@ -41,7 +41,7 @@ public class AIToolRegistry {
      *
      * @return 工具列表
      */
-    public List<IAITool> getAllTools() {
+    public List<AITool> getAllTools() {
         return new ArrayList<>(tools.values());
     }
 
@@ -51,7 +51,7 @@ public class AIToolRegistry {
      * @param name 工具名称
      * @return 工具实例，如果不存在则返回 null
      */
-    public IAITool getTool(String name) {
+    public AITool getTool(String name) {
         return tools.get(name);
     }
 
@@ -64,7 +64,7 @@ public class AIToolRegistry {
      * @throws RuntimeException 如果工具不存在或执行失败
      */
     public String executeTool(String name, JsonNode args) {
-        IAITool tool = getTool(name);
+        AITool tool = getTool(name);
         if (tool == null) {
             throw new RuntimeException("工具不存在: " + name);
         }

@@ -31,12 +31,12 @@ interface Props {
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
-  sendMessage: [content: string]
+  sendMessage: [content: string, options: { deepThinking: boolean; webSearch: boolean }]
   stopStreaming: []
 }>()
 
-const handleSend = (content: string) => {
-  emit('sendMessage', content)
+const handleSend = (content: string, options: { deepThinking: boolean; webSearch: boolean }) => {
+  emit('sendMessage', content, options)
 }
 
 const handleStop = () => {

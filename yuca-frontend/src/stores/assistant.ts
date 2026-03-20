@@ -218,7 +218,7 @@ export const useAssistantStore = defineStore('assistant', () => {
   /**
    * 发送消息（流式）
    */
-  const sendMessage = async (content: string) => {
+  const sendMessage = async (content: string, options?: { deepThinking?: boolean; webSearch?: boolean }) => {
     if (isLoading.value) return
 
     // 如果是临时会话，先创建会话
@@ -250,6 +250,7 @@ export const useAssistantStore = defineStore('assistant', () => {
       id: aiMessageId,
       role: 'assistant',
       content: '',
+      thinkingContent: '',
       createdAt: new Date().toISOString()
     }
     messages.push(aiMessage)
@@ -263,17 +264,36 @@ export const useAssistantStore = defineStore('assistant', () => {
     try {
       await api.sendMessage(
         currentSessionId.value,
-        { content },
+        {
+          content,
+          enableThinking: options?.deepThinking,
+          enableSearch: options?.webSearch
+        },
         // onMessage: SSE消息回调（累加到完整文本）
         (chunk: StreamChunk) => {
-          if (chunk.type === 'token' && chunk.content) {
-            // 累加到完整文本
+          if (chunk.type === 'thinking' && chunk.content) {
+            // 思考内容 - 累加到消息的thinkingContent字段
+            const aiMsgIndex = messages.findIndex(m => m.id === aiMessageId)
+            if (aiMsgIndex !== -1) {
+              messages[aiMsgIndex]!.thinkingContent = (messages[aiMsgIndex]!.thinkingContent || '') + chunk.content
+            }
+            console.log(`[思考内容] ${chunk.content}`)
+          } else if (chunk.type === 'token' && chunk.content) {
+            // 正式回答内容
             streamingFullText.value += chunk.content
 
             // 每次收到新token都触发打字机效果
             startTyping(aiMessageId)
 
             console.log(`[打字机] 收到token: "${chunk.content}", 完整文本长度: ${streamingFullText.value.length}`)
+          } else if (chunk.type === 'done') {
+            // 完成 - 更新token统计
+            const aiMsgIndex = messages.findIndex(m => m.id === aiMessageId)
+            if (aiMsgIndex !== -1) {
+              messages[aiMsgIndex]!.inputTokens = chunk.inputTokens
+              messages[aiMsgIndex]!.outputTokens = chunk.outputTokens
+              messages[aiMsgIndex]!.totalTokens = chunk.totalTokens
+            }
           }
         },
         // onComplete: 完成

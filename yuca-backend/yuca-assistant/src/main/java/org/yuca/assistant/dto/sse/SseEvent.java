@@ -37,6 +37,24 @@ public abstract class SseEvent {
     }
 
     /**
+     * 思考内容事件（深度思考模式）
+     */
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    @NoArgsConstructor
+    public static class SseThinkingEvent extends SseEvent {
+        /**
+         * 思考内容片段
+         */
+        private String content;
+
+        public SseThinkingEvent(String content) {
+            this.type = "thinking";
+            this.content = content;
+        }
+    }
+
+    /**
      * Token事件
      */
     @Data
@@ -55,7 +73,7 @@ public abstract class SseEvent {
     }
 
     /**
-     * 完成事件
+     * 完成事件（包含token使用情况）
      */
     @Data
     @EqualsAndHashCode(callSuper = true)
@@ -71,10 +89,35 @@ public abstract class SseEvent {
          */
         private String fullMessage;
 
+        /**
+         * 输入token数
+         */
+        private Integer inputTokens;
+
+        /**
+         * 输出token数
+         */
+        private Integer outputTokens;
+
+        /**
+         * 总token数
+         */
+        private Integer totalTokens;
+
         public SseDoneEvent(Long messageId, String fullMessage) {
             this.type = "done";
             this.messageId = messageId;
             this.fullMessage = fullMessage;
+        }
+
+        public SseDoneEvent(Long messageId, String fullMessage, Integer inputTokens,
+                           Integer outputTokens, Integer totalTokens) {
+            this.type = "done";
+            this.messageId = messageId;
+            this.fullMessage = fullMessage;
+            this.inputTokens = inputTokens;
+            this.outputTokens = outputTokens;
+            this.totalTokens = totalTokens;
         }
     }
 

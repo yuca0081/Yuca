@@ -46,7 +46,7 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
     private KnowledgeChunkMapper knowledgeChunkMapper;
 
     @Autowired
-    private EmbeddingService embeddingService;
+    private org.yuca.ai.client.AIEmbeddingClient embeddingClient;
 
     @Autowired
     private FileStorageService fileStorageService;
@@ -231,7 +231,7 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
                 .collect(Collectors.toList());
 
         // 批量生成向量
-        List<Double[]> embeddings = embeddingService.batchEmbed(texts);
+        List<Double[]> embeddings = embeddingClient.batchEmbed(texts);
 
         // 保存切片
         for (int i = 0; i < chunks.size(); i++) {

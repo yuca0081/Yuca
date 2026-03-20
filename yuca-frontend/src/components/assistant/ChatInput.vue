@@ -76,7 +76,7 @@ interface Props {
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
-  send: [content: string]
+  send: [content: string, options: { deepThinking: boolean; webSearch: boolean }]
   stop: []
 }>()
 
@@ -118,7 +118,10 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 const handleSend = () => {
   if (!canSend.value) return
-  emit('send', inputText.value.trim())
+  emit('send', inputText.value.trim(), {
+    deepThinking: deepThinkingEnabled.value,
+    webSearch: webSearchEnabled.value
+  })
   inputText.value = ''
 }
 

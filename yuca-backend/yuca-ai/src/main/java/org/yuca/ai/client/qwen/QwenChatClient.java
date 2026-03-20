@@ -1,73 +1,89 @@
 package org.yuca.ai.client.qwen;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
-import org.yuca.ai.client.qwen.dto.QwenChatRequest;
-import org.yuca.ai.client.qwen.dto.QwenChatResponse;
-import org.yuca.ai.client.qwen.dto.QwenMessage;
 import org.yuca.ai.client.AIChatClient;
+import org.yuca.ai.client.qwen.dto.QwenChatRequest;
 import org.yuca.ai.model.ChatRequest;
-import org.yuca.ai.model.AIMessage;
+import org.yuca.ai.model.StreamToken;
 import org.yuca.ai.model.ChatResponse;
-import org.yuca.ai.model.MessageRole;
+import org.yuca.ai.model.ChatStreamResponse;
+import org.yuca.ai.tool.AITool;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * 通义千问 AI 提供商实现（HTTP 方式）
+ * 通义千问 AI 聊天客户端
+ * <p>
+ * 使用 Builder 模式创建，支持配置默认 tools
  *
  * @author Yuca
  * @since 2025-01-27
  */
 @Slf4j
-@Component
-@RequiredArgsConstructor
-@ConditionalOnProperty(name = "qwen.api-key")
-public class QwenChatClient implements AIChatClient {
+public class QwenChatClient implements AIChatClient<QwenChatRequest> {
 
-    private final RestTemplate restTemplate;
     private final QwenConfig config;
+    private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+    private final List<AITool> defaultTools;
 
     private static final String CHAT_COMPLETIONS_ENDPOINT = "/chat/completions";
 
+    private QwenChatClient(Builder builder) {
+        this.config = builder.config;
+        this.restTemplate = builder.restTemplate;
+        this.objectMapper = builder.objectMapper;
+        this.defaultTools = builder.defaultTools;
+    }
+
+    /**
+     * 创建 Builder
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * 聊天对话（非流式）
+     */
     @Override
-    public ChatResponse chat(ChatRequest request) {
+    public ChatResponse chat(QwenChatRequest request) {
         long startTime = System.currentTimeMillis();
 
-        QwenChatRequest qwenRequest = buildRequest(request, false);
-        logRequest(request, qwenRequest);
+        // 应用默认 tools
+        final QwenChatRequest processedRequest = applyDefaultTools(request);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(config.getApiKey());
+        // 补充默认值
+        completeRequest(processedRequest, false);
+        logRequest(processedRequest);
 
-        HttpEntity<QwenChatRequest> entity = new HttpEntity<>(qwenRequest, headers);
+        HttpHeaders headers = createHeaders();
+        HttpEntity<QwenChatRequest> entity = new HttpEntity<>(processedRequest, headers);
 
         try {
-            ResponseEntity<QwenChatResponse> responseEntity = restTemplate.postForEntity(
+            ResponseEntity<ChatResponse> responseEntity = restTemplate.postForEntity(
                 config.getBaseUrl() + CHAT_COMPLETIONS_ENDPOINT,
                 entity,
-                QwenChatResponse.class
+                ChatResponse.class
             );
 
-            ChatResponse response = parseResponse(responseEntity.getBody());
+            ChatResponse response = responseEntity.getBody();
             long duration = System.currentTimeMillis() - startTime;
             logResponse(response, duration);
 
             return response;
+
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             log.error("千问调用失败，耗时: {}ms", duration, e);
@@ -75,38 +91,57 @@ public class QwenChatClient implements AIChatClient {
         }
     }
 
+    /**
+     * 聊天对话（流式）
+     */
     @Override
-    public void chatStream(ChatRequest request, Consumer<String> tokenHandler) {
+    public ChatStreamResponse chatStream(QwenChatRequest request, Consumer<StreamToken> tokenHandler) {
         long startTime = System.currentTimeMillis();
 
-        QwenChatRequest qwenRequest = buildRequest(request, true);
-        logRequest(request, qwenRequest);
+        // 应用默认 tools
+        final QwenChatRequest processedRequest = applyDefaultTools(request);
+
+        // 补充默认值
+        completeRequest(processedRequest, true);
+        logRequest(processedRequest);
+
+        final ChatStreamResponse[] responseRef = new ChatStreamResponse[1];
+        HttpHeaders headers = createHeaders();
 
         try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setBearerAuth(config.getApiKey());
-
-            HttpEntity<QwenChatRequest> entity = new HttpEntity<>(qwenRequest, headers);
-
-            // 使用 execute 方法处理流式响应
             restTemplate.execute(
                 config.getBaseUrl() + CHAT_COMPLETIONS_ENDPOINT,
                 org.springframework.http.HttpMethod.POST,
                 requestCallback -> {
                     requestCallback.getHeaders().putAll(headers);
-                    requestCallback.getBody().write(new ObjectMapper().writeValueAsBytes(qwenRequest));
+                    requestCallback.getBody().write(objectMapper.writeValueAsBytes(processedRequest));
                 },
                 responseExtractor -> {
-                    // 直接读取响应流
                     try (BufferedReader reader = new BufferedReader(
                         new InputStreamReader(responseExtractor.getBody(), "UTF-8"))) {
 
                         String line;
                         while ((line = reader.readLine()) != null) {
-                            String content = parseSseLine(line);
-                            if (content != null && !content.isEmpty()) {
-                                tokenHandler.accept(content);
+                            if (line.startsWith("data: ")) {
+                                String json = line.substring(6).trim();
+                                if ("[DONE]".equals(json)) {
+                                    break;
+                                }
+
+                                try {
+                                    ChatStreamResponse chunkResponse = objectMapper.readValue(json, ChatStreamResponse.class);
+
+                                    if (chunkResponse.getUsage() != null) {
+                                        responseRef[0] = chunkResponse;
+                                    }
+
+                                    StreamToken token = chunkResponse.toStreamToken();
+                                    if (token != null && token.getContent() != null && !token.getContent().isEmpty()) {
+                                        tokenHandler.accept(token);
+                                    }
+                                } catch (Exception e) {
+                                    log.warn("解析流式响应chunk失败: {}, 错误: {}", line, e.getMessage());
+                                }
                             }
                         }
                     }
@@ -116,6 +151,8 @@ public class QwenChatClient implements AIChatClient {
                 }
             );
 
+            return responseRef[0] != null ? responseRef[0] : ChatStreamResponse.builder().build();
+
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             log.error("千问流式调用失败，耗时: {}ms", duration, e);
@@ -124,154 +161,157 @@ public class QwenChatClient implements AIChatClient {
     }
 
     /**
-     * 解析 SSE 行
+     * 应用默认 tools
      */
-    private String parseSseLine(String data) {
-        try {
-            if (data.startsWith("data: ")) {
-                String json = data.substring(6).trim();
-                if ("[DONE]".equals(json)) {
-                    return null;
-                }
-                JsonNode jsonNode = objectMapper.readTree(json);
-                JsonNode choicesNode = jsonNode.get("choices");
-
-                if (choicesNode != null && choicesNode.isArray() && choicesNode.size() > 0) {
-                    JsonNode deltaNode = choicesNode.get(0).get("delta");
-                    if (deltaNode != null && deltaNode.has("content")) {
-                        return deltaNode.get("content").asText();
-                    }
-                }
-            }
-            return null;
-        } catch (Exception e) {
-            log.warn("解析流式响应行失败: {}, 错误: {}", data, e.getMessage());
-            return null;
+    private QwenChatRequest applyDefaultTools(QwenChatRequest request) {
+        if (!defaultTools.isEmpty() && (request.getTools() == null || request.getTools().isEmpty())) {
+            request.setTools(convertToChatRequestTools(defaultTools));
         }
+        return request;
     }
 
     /**
-     * 构建千问请求
+     * 转换 AITool 到 ChatRequest.Tool
      */
-    private QwenChatRequest buildRequest(ChatRequest request, boolean stream) {
-        List<QwenMessage> qwenMessages = request.getMessages().stream()
-            .map(this::convertMessage)
-            .toList();
-
-        QwenChatRequest.QwenChatRequestBuilder builder = QwenChatRequest.builder()
-            .model(request.getModel() != null ? request.getModel() : config.getModel())
-            .messages(qwenMessages)
-            .stream(stream);
-
-        // 温度参数
-        if (request.getTemperature() != null) {
-            builder.temperature(request.getTemperature().doubleValue());
-        } else {
-            builder.temperature(config.getTemperature().doubleValue());
+    private List<ChatRequest.Tool> convertToChatRequestTools(List<AITool> aiTools) {
+        List<ChatRequest.Tool> tools = new ArrayList<>();
+        for (AITool aiTool : aiTools) {
+            tools.add(ChatRequest.Tool.builder()
+                .type("function")
+                .function(ChatRequest.Tool.Function.builder()
+                    .name(aiTool.getName())
+                    .description(aiTool.getDescription())
+                    .parameters(aiTool.getParameters().toMap())
+                    .build())
+                .build());
         }
-
-        // 最大token数
-        if (request.getMaxTokens() != null) {
-            builder.max_tokens(request.getMaxTokens());
-        } else {
-            builder.max_tokens(config.getMaxTokens());
-        }
-
-        return builder.build();
+        return tools;
     }
 
     /**
-     * 转换消息格式
+     * 创建请求头
      */
-    private QwenMessage convertMessage(AIMessage message) {
-        return QwenMessage.builder()
-            .role(convertRole(message.getRole()))
-            .content(message.getContent())
-            .build();
+    private HttpHeaders createHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(config.getApiKey());
+        return headers;
     }
 
     /**
-     * 转换角色
+     * 补充请求参数的默认值
      */
-    private String convertRole(MessageRole role) {
-        return switch (role) {
-            case USER -> "user";
-            case ASSISTANT -> "assistant";
-            case SYSTEM -> "system";
-            case TOOL -> "tool";
-        };
-    }
-
-    /**
-     * 解析响应
-     */
-    private ChatResponse parseResponse(QwenChatResponse qwenResponse) {
-        if (qwenResponse == null || qwenResponse.getChoices() == null || qwenResponse.getChoices().isEmpty()) {
-            throw new RuntimeException("AI 返回空结果");
+    private void completeRequest(QwenChatRequest request, boolean stream) {
+        if (request.getModel() == null) {
+            request.setModel(config.getModel());
         }
+        request.setStream(stream);
 
-        QwenChatResponse.Choice choice = qwenResponse.getChoices().get(0);
-        String content = choice.getMessage().getContent();
-
-        ChatResponse.Usage usage = null;
-        if (qwenResponse.getUsage() != null) {
-            usage = ChatResponse.Usage.builder()
-                .inputTokens(qwenResponse.getUsage().getPrompt_tokens())
-                .outputTokens(qwenResponse.getUsage().getCompletion_tokens())
-                .build();
+        if (stream) {
+            request.setStreamOptions(QwenChatRequest.StreamOptions.builder()
+                .includeUsage(true)
+                .build());
         }
-
-        return ChatResponse.builder()
-            .content(content)
-            .usage(usage)
-            .requestId(qwenResponse.getId())
-            .model(qwenResponse.getModel())
-            .build();
     }
 
     /**
      * 记录请求日志
      */
-    private void logRequest(ChatRequest request, QwenChatRequest qwenRequest) {
+    private void logRequest(QwenChatRequest request) {
         log.info("========== AI 调用开始 ==========");
         log.info("提供商: 通义千问");
         log.info("API 地址: {}", config.getBaseUrl());
-        log.info("模型: {}", qwenRequest.getModel());
-        log.info("消息数: {}", qwenRequest.getMessages().size());
+        log.info("模型: {}", request.getModel());
+        log.info("消息数: {}", request.getMessages() != null ? request.getMessages().size() : 0);
+        log.info("流式: {}", request.getStream());
 
-        if (log.isDebugEnabled()) {
-            for (int i = 0; i < qwenRequest.getMessages().size(); i++) {
-                QwenMessage msg = qwenRequest.getMessages().get(i);
-                String preview = msg.getContent().length() > 50
-                    ? msg.getContent().substring(0, 50) + "..."
-                    : msg.getContent();
-                log.debug("消息[{}]: role={}, content={}", i, msg.getRole(), preview);
-            }
+        if (request.getTools() != null && !request.getTools().isEmpty()) {
+            log.info("工具数: {}", request.getTools().size());
         }
     }
 
     /**
-     * 记录响应日志
+     * 记录非流式响应日志
      */
     private void logResponse(ChatResponse response, long duration) {
         log.info("AI 调用成功，耗时: {}ms", duration);
-        log.info("内容长度: {}", response.getContent().length());
+
+        if (response.getChoices() != null && !response.getChoices().isEmpty()) {
+            String content = response.getContent();
+            if (content != null) {
+                log.info("内容长度: {}", content.length());
+            }
+
+            if (response.hasToolCalls()) {
+                log.info("工具调用数: {}", response.getToolCallsList().size());
+            }
+
+            if (log.isDebugEnabled() && content != null) {
+                String preview = content.length() > 100
+                    ? content.substring(0, 100) + "..."
+                    : content;
+                log.debug("回复内容: {}", preview);
+            }
+        }
 
         if (response.getUsage() != null) {
             log.info("Token 使用: input={}, output={}, total={}",
-                response.getUsage().getInputTokens(),
-                response.getUsage().getOutputTokens(),
+                response.getUsage().getPromptTokens(),
+                response.getUsage().getCompletionTokens(),
                 response.getUsage().getTotalTokens()
             );
         }
 
-        if (log.isDebugEnabled()) {
-            String preview = response.getContent().length() > 100
-                ? response.getContent().substring(0, 100) + "..."
-                : response.getContent();
-            log.debug("回复内容: {}", preview);
+        log.info("========== AI 调用结束 ==========");
+    }
+
+    /**
+     * Builder 类
+     */
+    public static class Builder {
+        private QwenConfig config;
+        private RestTemplate restTemplate;
+        private ObjectMapper objectMapper;
+        private List<AITool> defaultTools = new ArrayList<>();
+
+        public Builder config(QwenConfig config) {
+            this.config = config;
+            return this;
         }
 
-        log.info("========== AI 调用结束 ==========");
+        public Builder restTemplate(RestTemplate restTemplate) {
+            this.restTemplate = restTemplate;
+            return this;
+        }
+
+        public Builder objectMapper(ObjectMapper objectMapper) {
+            this.objectMapper = objectMapper;
+            return this;
+        }
+
+        public Builder defaultTools(AITool... tools) {
+            this.defaultTools.addAll(Arrays.asList(tools));
+            return this;
+        }
+
+        public Builder defaultTools(List<AITool> tools) {
+            this.defaultTools.addAll(tools);
+            return this;
+        }
+
+        public QwenChatClient build() {
+            // 验证必填字段
+            if (config == null) {
+                throw new IllegalArgumentException("config 不能为空");
+            }
+            if (restTemplate == null) {
+                throw new IllegalArgumentException("restTemplate 不能为空");
+            }
+            if (objectMapper == null) {
+                throw new IllegalArgumentException("objectMapper 不能为空");
+            }
+
+            return new QwenChatClient(this);
+        }
     }
 }

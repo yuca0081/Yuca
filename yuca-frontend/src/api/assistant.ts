@@ -73,7 +73,9 @@ export const sendMessage = async (
       },
       body: JSON.stringify({
         sessionId,
-        content: data.content
+        content: data.content,
+        enableThinking: data.enableThinking,
+        enableSearch: data.enableSearch
       })
     })
 

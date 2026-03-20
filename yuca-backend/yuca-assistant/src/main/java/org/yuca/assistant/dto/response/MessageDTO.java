@@ -35,6 +35,32 @@ public class MessageDTO {
     private String content;
 
     /**
+     * 深度思考内容（可选）
+     */
+    private String thinkingContent;
+
+    /**
+     * 输入token数
+     */
+    private Integer inputTokens;
+
+    /**
+     * 输出token数
+     */
+    private Integer outputTokens;
+
+    /**
+     * 输入token详细信息（JSON格式，对应prompt_tokens_details）
+     * 包含：cached_tokens, audio_tokens, text_tokens, image_tokens, video_tokens
+     */
+    private String promptTokensDetails;
+
+    /**
+     * 总token数
+     */
+    private Integer totalTokens;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createdAt;

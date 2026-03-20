@@ -28,7 +28,7 @@ public class AIToolAutoConfig {
      */
     @PostConstruct
     public void registerTools() {
-        var tools = applicationContext.getBeansOfType(IAITool.class);
+        var tools = applicationContext.getBeansOfType(AITool.class);
         tools.values().forEach(registry::register);
 
         log.info("自动注册了 {} 个 AI 工具", tools.size());

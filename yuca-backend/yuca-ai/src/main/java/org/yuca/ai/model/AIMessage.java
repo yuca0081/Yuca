@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * AI 消息模型
+ * AI消息（通用格式）
  *
  * @author Yuca
  * @since 2025-01-27
@@ -23,15 +23,17 @@ public class AIMessage {
     private MessageRole role;
 
     /**
-     * 内容
+     * 消息内容
      */
     private String content;
 
     /**
+     * 工具调用ID（可选，用于工具响应）
+     */
+    private String toolCallId;
+
+    /**
      * 创建用户消息
-     *
-     * @param content 消息内容
-     * @return 用户消息
      */
     public static AIMessage user(String content) {
         return AIMessage.builder()
@@ -42,9 +44,6 @@ public class AIMessage {
 
     /**
      * 创建助手消息
-     *
-     * @param content 消息内容
-     * @return 助手消息
      */
     public static AIMessage assistant(String content) {
         return AIMessage.builder()
@@ -55,13 +54,21 @@ public class AIMessage {
 
     /**
      * 创建系统消息
-     *
-     * @param content 消息内容
-     * @return 系统消息
      */
     public static AIMessage system(String content) {
         return AIMessage.builder()
             .role(MessageRole.SYSTEM)
+            .content(content)
+            .build();
+    }
+
+    /**
+     * 创建工具响应消息
+     */
+    public static AIMessage toolResponse(String toolCallId, String content) {
+        return AIMessage.builder()
+            .role(MessageRole.TOOL)
+            .toolCallId(toolCallId)
             .content(content)
             .build();
     }

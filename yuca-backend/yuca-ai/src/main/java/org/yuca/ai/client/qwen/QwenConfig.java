@@ -28,7 +28,7 @@ public class QwenConfig {
     /**
      * 默认模型
      */
-    private String model = "qwen-plus";
+    private String model = "qwen3.5-flash";
 
     /**
      * 最大 token 数

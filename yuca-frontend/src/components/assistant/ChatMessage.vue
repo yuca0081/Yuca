@@ -16,6 +16,15 @@
       </div>
 
       <div class="message-text">
+        <!-- 深度思考内容 -->
+        <div v-if="message.thinkingContent" class="thinking-content">
+          <div class="thinking-header">
+            <n-icon :component="SparklesIcon" size="14" />
+            <span>深度思考</span>
+          </div>
+          <div class="thinking-text">{{ message.thinkingContent }}</div>
+        </div>
+
         <!-- 流式输出时显示纯文本，避免频繁markdown渲染 -->
         <div v-if="message.role === 'assistant'" class="markdown-content">
           <div v-if="streaming" class="streaming-content">{{ message.content }}</div>
@@ -23,6 +32,13 @@
         </div>
         <div v-else class="user-content">
           {{ message.content }}
+        </div>
+
+        <!-- Token使用统计 -->
+        <div v-if="message.totalTokens" class="token-usage">
+          <span class="token-item">输入: {{ message.inputTokens }}</span>
+          <span class="token-item">输出: {{ message.outputTokens }}</span>
+          <span class="token-item total">总计: {{ message.totalTokens }}</span>
         </div>
       </div>
 
@@ -45,7 +61,8 @@ import { NAvatar, NIcon, NButton } from 'naive-ui'
 import {
   Person as UserIcon,
   ChatboxEllipses as RobotIcon,
-  Copy as CopyIcon
+  Copy as CopyIcon,
+  Sparkles as SparklesIcon
 } from '@vicons/ionicons5'
 import markdownIt from 'markdown-it'
 import hljs from 'highlight.js'
@@ -266,6 +283,57 @@ const copyMessage = () => {
 
 .chat-message:hover .message-actions {
   opacity: 1;
+}
+
+/* 深度思考内容样式 */
+.thinking-content {
+  background: #f3f4f6;
+  border-left: 3px solid #9ca3af;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.thinking-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #6b7280;
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.thinking-text {
+  color: #4b5563;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Token使用统计样式 */
+.token-usage {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e5e7eb;
+  font-size: 12px;
+  color: #6b7280;
+  flex-wrap: wrap;
+}
+
+.token-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.token-item.total {
+  color: #374151;
+  font-weight: 600;
 }
 </style>
 

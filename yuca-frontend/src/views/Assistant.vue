@@ -272,9 +272,9 @@ const handleDeleteSession = async (sessionId: number) => {
 }
 
 // 发送消息
-const handleSendMessage = async (content: string) => {
+const handleSendMessage = async (content: string, options: { deepThinking: boolean; webSearch: boolean }) => {
   isLoading.value = true
-  await assistantStore.sendMessage(content)
+  await assistantStore.sendMessage(content, options)
   isLoading.value = false
 }
 
