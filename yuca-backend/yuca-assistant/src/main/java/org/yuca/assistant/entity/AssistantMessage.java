@@ -40,6 +40,11 @@ public class AssistantMessage {
     private String content;
 
     /**
+     * 使用的模型名称（仅assistant角色消息有值）
+     */
+    private String modelName;
+
+    /**
      * 深度思考内容（可选）
      */
     private String thinkingContent;

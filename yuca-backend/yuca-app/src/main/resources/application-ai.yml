@@ -1,21 +1,55 @@
-# Yuca AI 框架配置
+# ============================================
+# Yuca AI - LangChain4j 配置
+# ============================================
+
+yuca:
+  ai:
+    # 启用的模型提供商列表
+    enabled-providers:
+      - qwen
+      # - openai  # 取消注释以启用 OpenAI
+
+    # 默认模型提供商
+    default-provider: qwen
+
+    # 工具扫描包路径
+    tools-scan-package: org.yuca.ai.tool
+
+    # 记忆配置
+    memory:
+      max-messages: 50            # 最大保留消息数量
+      retain-duration: 24h        # 记忆保留时长
+
+    # OpenAI 配置
+    open-ai:
+      api-key: ${OPENAI_API_KEY:your-openai-api-key}
+      base-url: https://api.openai.com/v1
+      model-name: gpt-4
+      temperature: 0.7
+      max-tokens: 2000
+      timeout: 60s
+      top-p: 1.0
+
+    # 通义千问配置（使用 OpenAI 兼容模式）
+    qwen:
+      api-key: sk-4632c16e41c64e738d3b4147aa58581f
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      model-name: qwen-plus
+      temperature: 0.7
+      max-tokens: 5000
+      timeout: 60s
+      top-p: 1.0
 
 # ============================================
-# OpenAI 格式配置（推荐）
+# LangChain4j 原生配置（可选）
 # ============================================
-# 支持所有兼容 OpenAI API 格式的厂商
-#openai:
-#  api-key: sk-your-api-key
-#  base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-#  model: qwen-plus
-#  max-tokens: 2000
-#  temperature: 0.7
-
-qwen:
-  api-key: sk-4632c16e41c64e738d3b4147aa58581f
-  base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-  model: qwen3.5-flash
-  max-tokens: 5000
-  temperature: 0.7
-  embedding-model: text-embedding-v3
-  embedding-dimensions: 1536
+# 如果需要使用 LangChain4j 的自动配置功能，
+# 可以取消以下注释
+#langchain4j:
+#  open-ai:
+#    chat-model:
+#      api-key: ${QWEN_API_KEY}
+#      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+#      model-name: qwen-plus
+#      temperature: 0.7
+#      max-tokens: 5000

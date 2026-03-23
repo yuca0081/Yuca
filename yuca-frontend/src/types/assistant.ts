@@ -6,7 +6,6 @@
 export interface Session {
   id: number
   title: string | null
-  modelName: string
   createdAt: string
   updatedAt: string
   lastMessagePreview?: string
@@ -25,6 +24,7 @@ export interface Message {
   id: number
   role: MessageRole
   content: string
+  modelName?: string       // 使用的模型名称（仅assistant角色有值）
   createdAt: string
   thinkingContent?: string  // 深度思考内容
   inputTokens?: number      // 输入token数
@@ -41,6 +41,7 @@ export interface CreateSessionDto {
 // 发送消息 DTO
 export interface SendMessageDto {
   content: string
+  modelName?: string       // 指定使用的模型（可选，如果不指定则使用会话默认模型）
   enableThinking?: boolean
   enableSearch?: boolean
 }

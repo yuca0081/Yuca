@@ -35,11 +35,6 @@ public class AssistantSession {
     private String title;
 
     /**
-     * 使用的模型名称
-     */
-    private String modelName;
-
-    /**
      * 创建时间
      */
     @TableField(fill = FieldFill.INSERT)

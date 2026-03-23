@@ -9,9 +9,11 @@ CREATE TABLE IF NOT EXISTS assistant_message (
     session_id      BIGINT NOT NULL,                      -- 会话ID，关联assistant_session表
     role            VARCHAR(20) NOT NULL,                 -- 角色：user/assistant/system
     content         TEXT NOT NULL,                        -- 消息内容
+    model_name      VARCHAR(50),                          -- 使用的模型名称（仅assistant角色消息有值）
     thinking_content TEXT,                               -- 深度思考内容（可选，深度思考模式时保存）
     input_tokens    INTEGER DEFAULT 0,                   -- 输入token数（prompt_tokens）
     output_tokens   INTEGER DEFAULT 0,                   -- 输出token数（completion_tokens）
+    prompt_tokens_details TEXT,                          -- 输入token详细信息（JSON格式）
     total_tokens    INTEGER DEFAULT 0,                   -- 总token数（input + output）
     created_at      TIMESTAMP DEFAULT NOW(),             -- 创建时间
     deleted         INTEGER DEFAULT 0                    -- 软删除标记（0-正常，1-已删除）
@@ -30,9 +32,11 @@ COMMENT ON COLUMN assistant_message.id IS '主键ID';
 COMMENT ON COLUMN assistant_message.session_id IS '会话ID，关联assistant_session表';
 COMMENT ON COLUMN assistant_message.role IS '角色类型：user-用户消息, assistant-AI回复, system-系统提示词';
 COMMENT ON COLUMN assistant_message.content IS '消息内容，支持长文本';
+COMMENT ON COLUMN assistant_message.model_name IS '使用的模型：qwen-plus/qwen-max等（仅assistant角色消息有值）';
 COMMENT ON COLUMN assistant_message.thinking_content IS 'AI深度思考内容，当启用深度思考模式时保存';
 COMMENT ON COLUMN assistant_message.input_tokens IS '输入token数（prompt_tokens）';
 COMMENT ON COLUMN assistant_message.output_tokens IS '输出token数（completion_tokens，包含思考token）';
+COMMENT ON COLUMN assistant_message.prompt_tokens_details IS '输入token详细信息（JSON格式），包含cached_tokens, audio_tokens等';
 COMMENT ON COLUMN assistant_message.total_tokens IS '总token数（input + output）';
 COMMENT ON COLUMN assistant_message.created_at IS '创建时间';
 COMMENT ON COLUMN assistant_message.deleted IS '软删除标记：0-正常，1-已删除';

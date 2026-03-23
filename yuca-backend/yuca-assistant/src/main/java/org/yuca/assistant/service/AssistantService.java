@@ -2,24 +2,26 @@ package org.yuca.assistant.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.model.output.Response;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import org.yuca.ai.client.qwen.QwenChatClient;
-import org.yuca.ai.client.qwen.QwenConfig;
-import org.yuca.ai.client.qwen.dto.QwenChatRequest;
-import org.yuca.ai.model.*;
+import org.yuca.ai.model.MessageRole;
+import org.yuca.ai.service.LangChain4jService;
 import org.yuca.assistant.dto.request.AssistantChatRequest;
 import org.yuca.assistant.dto.response.MessageDTO;
 import org.yuca.assistant.dto.response.SessionDTO;
 import org.yuca.assistant.entity.AssistantMessage;
 import org.yuca.assistant.mapper.AssistantSessionMapper;
-import org.yuca.ai.tool.AIToolRegistry;
 import org.yuca.assistant.dto.sse.SseEvent;
 import org.yuca.assistant.entity.AssistantSession;
 import org.yuca.assistant.mapper.AssistantMessageMapper;
@@ -33,19 +35,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * AI助手业务服务
+ * 基于 LangChain4j 框架重构
  *
  * @author Yuca
  * @since 2025-01-27
  */
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class AssistantService {
 
-    private final QwenConfig qwenConfig;
-    private final RestTemplate qwenRestTemplate;
+    @Autowired
+    private LangChain4jService langChain4jService;
+
+    @Autowired
+    private ApplicationContext applicationContext;
+
     private final ObjectMapper objectMapper;
-    private final AIToolRegistry toolRegistry;
     private final AssistantMessageMapper messageMapper;
     private final AssistantSessionMapper sessionMapper;
 
@@ -54,11 +59,13 @@ public class AssistantService {
 
     /**
      * 处理聊天请求（SSE流式）
+     * 基于 LangChain4j 实现
      */
     @Transactional
     public void processChat(Long userId, AssistantChatRequest request, SseEmitter emitter, HttpServletResponse response) {
         long startTime = System.currentTimeMillis();
-        log.info("开始处理聊天请求 - 用户ID: {}, 会话ID: {}", userId, request.getSessionId());
+        log.info("开始处理聊天请求 - 用户ID: {}, 会话ID: {}, 模型: {}",
+                userId, request.getSessionId(), request.getModelName());
 
         try {
             // 立即发送一个SSE注释，强制flush响应缓冲，确保连接保持打开
@@ -77,91 +84,67 @@ public class AssistantService {
             // 3. 发送开始事件
             sendSseEvent(emitter, response, new SseEvent.SseStartEvent(userMessage.getId()));
 
-            // 4. 加载上下文
-            List<AssistantMessage> historyMessages = loadContextMessages(request.getSessionId());
-            List<QwenChatRequest.QwenMessage> qwenMessages = buildQwenMessages(historyMessages, request.getContent());
-
-            // 5. 创建千问客户端（带默认工具）
-            QwenChatClient qwenChatClient = QwenChatClient.builder()
-                .config(qwenConfig)
-                .restTemplate(qwenRestTemplate)
-                .objectMapper(objectMapper)
-                .defaultTools(toolRegistry.getAllTools())
-                .build();
-
-            // 6. 构建请求
-            QwenChatRequest.QwenChatRequestBuilder requestBuilder = QwenChatRequest.builder()
-                .messages(qwenMessages);
-
-            // 设置深度思考模式
-            if (request.getEnableThinking() != null && request.getEnableThinking()) {
-                requestBuilder.enableThinking(true);
+            // 4. 确定使用的模型（从请求中获取，或使用默认值）
+            String provider = request.getModelName();
+            if (provider == null || provider.isEmpty()) {
+                provider = "qwen"; // 默认使用千问
             }
 
-            // 设置联网搜索
-            if (request.getEnableSearch() != null && request.getEnableSearch()) {
-                requestBuilder.enableSearch(true);
-            }
+            // 5. 准备工具列表（可选）
+            List<Object> tools = new ArrayList<>();
+            // 添加时间工具
+            tools.add(applicationContext.getBean("timeTools"));
+            // 添加计算器工具
+            tools.add(applicationContext.getBean("calculatorTools"));
 
-            QwenChatRequest qwenRequest = requestBuilder.build();
+            log.info("使用模型提供商: {}, 可用工具数量: {}", provider, tools.size());
 
+            // 6. 使用 LangChain4j 进行流式聊天
             StringBuilder fullResponse = new StringBuilder();
-            StringBuilder thinkingResponse = new StringBuilder();  // 收集思考内容
             long tokenStartTime = System.currentTimeMillis();
             AtomicInteger tokenCount = new AtomicInteger(0);
 
-            // 使用回调方式处理流式响应（带类型信息和usage统计）
-            ChatStreamResponse aiResponse = qwenChatClient.chatStream(qwenRequest, token -> {
-                int currentTokenNum = tokenCount.incrementAndGet();
-                long tokenTime = System.currentTimeMillis() - tokenStartTime;
-                log.info("发送token #{}: type={}, content=\"{}\" (AI返回后{}ms)",
-                    currentTokenNum, token.getType(), token.getContent(), tokenTime);
+            // 调用 LangChain4j 流式聊天
+            Response<AiMessage> aiResponse = langChain4jService.chatStreamWithResponse(
+                    provider,
+                    request.getSessionId().toString(),
+                    request.getContent(),
+                    token -> {
+                        int currentTokenNum = tokenCount.incrementAndGet();
+                        long tokenTime = System.currentTimeMillis() - tokenStartTime;
+                        log.info("发送token #{}: content=\"{}\" (AI返回后{}ms)",
+                                currentTokenNum, token, tokenTime);
 
-                // 根据token类型发送不同的事件
-                if ("thinking".equals(token.getType())) {
-                    // 思考内容
-                    thinkingResponse.append(token.getContent());
-                    sendSseEvent(emitter, response, new SseEvent.SseThinkingEvent(token.getContent()));
-                } else {
-                    // 正式回答
-                    fullResponse.append(token.getContent());
-                    sendSseEvent(emitter, response, new SseEvent.SseTokenEvent(token.getContent()));
-                }
-            });
+                        // 发送token到前端
+                        fullResponse.append(token);
+                        sendSseEvent(emitter, response, new SseEvent.SseTokenEvent(token));
+                    }
+            );
 
             // 准备token使用数据
             Integer inputTokens = null;
             Integer outputTokens = null;
-            String promptTokensDetails = null;
             Integer totalTokens = null;
 
-            if (aiResponse != null && aiResponse.getUsage() != null) {
-                inputTokens = aiResponse.getUsage().getInputTokens();
-                outputTokens = aiResponse.getUsage().getOutputTokens();
-                totalTokens = aiResponse.getUsage().getTotalTokens();
-
-                // 序列化 promptTokensDetails 为 JSON 字符串
-                if (aiResponse.getUsage().getPromptTokensDetails() != null) {
-                    try {
-                        promptTokensDetails = objectMapper.writeValueAsString(aiResponse.getUsage().getPromptTokensDetails());
-                    } catch (Exception e) {
-                        log.warn("序列化 promptTokensDetails 失败", e);
-                    }
-                }
+            if (aiResponse != null && aiResponse.tokenUsage() != null) {
+                inputTokens = aiResponse.tokenUsage().inputTokenCount();
+                outputTokens = aiResponse.tokenUsage().outputTokenCount();
+                totalTokens = aiResponse.tokenUsage().totalTokenCount();
 
                 log.info("Token使用统计 - input: {}, output: {}, total: {}",
-                    inputTokens, outputTokens, totalTokens);
+                        inputTokens, outputTokens, totalTokens);
             }
 
-            // 流式响应完成后，保存AI消息（包含思考内容和token统计）
+            // 流式响应完成后，保存AI消息
             AssistantMessage assistantMessage = saveAssistantMessage(
-                request.getSessionId(),
-                fullResponse.toString(),
-                !thinkingResponse.isEmpty() ? thinkingResponse.toString() : null,
-                inputTokens,
-                outputTokens,
-                promptTokensDetails,
-                totalTokens
+                    request.getSessionId(),
+                    fullResponse.toString(),
+                    provider,  // 使用模型提供商名称
+                    null,  // LangChain4j 基础版本不支持思考内容分离
+                    inputTokens,
+                    outputTokens,
+                    null,  // 不包含详细的 prompt tokens details
+                    totalTokens
             );
 
             // 更新会话时间
@@ -169,17 +152,17 @@ public class AssistantService {
 
             // 发送完成事件（包含token统计）
             sendSseEvent(emitter, response, new SseEvent.SseDoneEvent(
-                assistantMessage.getId(),
-                fullResponse.toString(),
-                inputTokens,
-                outputTokens,
-                totalTokens
+                    assistantMessage.getId(),
+                    fullResponse.toString(),
+                    inputTokens,
+                    outputTokens,
+                    totalTokens
             ));
             emitter.complete();
 
             // 生成标题（首次对话）
             if (session.getTitle() == null || session.getTitle().isEmpty()) {
-                generateTitle(session, request.getContent());
+                generateTitle(session, request.getContent(), provider);
             }
 
             long totalDuration = System.currentTimeMillis() - startTime;
@@ -209,7 +192,6 @@ public class AssistantService {
             return SessionDTO.builder()
                 .id(session.getId())
                 .title(session.getTitle())
-                .modelName(session.getModelName())
                 .createdAt(session.getCreatedAt())
                 .updatedAt(session.getUpdatedAt())
                 .lastMessagePreview(lastMessage)
@@ -224,7 +206,6 @@ public class AssistantService {
     public SessionDTO createSession(Long userId, String modelName) {
         AssistantSession session = AssistantSession.builder()
             .userId(userId)
-            .modelName(modelName != null ? modelName : "qwen-plus")
             .title(null)
             .build();
 
@@ -233,7 +214,6 @@ public class AssistantService {
         return SessionDTO.builder()
             .id(session.getId())
             .title(session.getTitle())
-            .modelName(session.getModelName())
             .createdAt(session.getCreatedAt())
             .updatedAt(session.getUpdatedAt())
             .build();
@@ -264,6 +244,7 @@ public class AssistantService {
                 .id(msg.getId())
                 .role(msg.getRole())
                 .content(msg.getContent())
+                .modelName(msg.getModelName())
                 .thinkingContent(msg.getThinkingContent())
                 .inputTokens(msg.getInputTokens())
                 .outputTokens(msg.getOutputTokens())
@@ -276,7 +257,6 @@ public class AssistantService {
         return SessionDTO.builder()
             .id(session.getId())
             .title(session.getTitle())
-            .modelName(session.getModelName())
             .createdAt(session.getCreatedAt())
             .updatedAt(session.getUpdatedAt())
             .messages(messageDTOs)
@@ -296,13 +276,15 @@ public class AssistantService {
         return message;
     }
 
-    private AssistantMessage saveAssistantMessage(Long sessionId, String content, String thinkingContent,
+    private AssistantMessage saveAssistantMessage(Long sessionId, String content, String modelName,
+                                                  String thinkingContent,
                                                   Integer inputTokens, Integer outputTokens,
                                                   String promptTokensDetails, Integer totalTokens) {
         AssistantMessage message = AssistantMessage.builder()
             .sessionId(sessionId)
             .role(MessageRole.ASSISTANT.getRole())
             .content(content)
+            .modelName(modelName)
             .thinkingContent(thinkingContent)
             .inputTokens(inputTokens)
             .outputTokens(outputTokens)
@@ -314,82 +296,19 @@ public class AssistantService {
         return message;
     }
 
-    private List<AssistantMessage> loadContextMessages(Long sessionId) {
-        LambdaQueryWrapper<AssistantMessage> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(AssistantMessage::getSessionId, sessionId)
-            .orderByAsc(AssistantMessage::getCreatedAt)
-            .last("LIMIT " + maxContextMessages);
-        return messageMapper.selectList(wrapper);
-    }
-
-    private List<QwenChatRequest.QwenMessage> buildQwenMessages(List<AssistantMessage> history, String newContent) {
-        List<QwenChatRequest.QwenMessage> messages = new ArrayList<>();
-        messages.add(QwenChatRequest.QwenMessage.builder()
-            .role("system")
-            .content("你是一个智能助手，帮助用户解答问题和提供建议。请用简洁、友好的语言回复。")
-            .build());
-
-        for (AssistantMessage msg : history) {
-            if ("user".equals(msg.getRole())) {
-                messages.add(QwenChatRequest.QwenMessage.builder()
-                    .role("user")
-                    .content(msg.getContent())
-                    .build());
-            } else if ("assistant".equals(msg.getRole())) {
-                QwenChatRequest.QwenMessage.QwenMessageBuilder builder = QwenChatRequest.QwenMessage.builder()
-                    .role("assistant")
-                    .content(msg.getContent());
-
-                // 如果有思考内容，添加到消息中
-                if (msg.getThinkingContent() != null && !msg.getThinkingContent().isEmpty()) {
-                    builder.reasoningContent(msg.getThinkingContent());
-                }
-
-                messages.add(builder.build());
-            }
-        }
-
-        messages.add(QwenChatRequest.QwenMessage.builder()
-            .role("user")
-            .content(newContent)
-            .build());
-
-        return messages;
-    }
-
-    private void generateTitle(AssistantSession session, String userMessage) {
+    private void generateTitle(AssistantSession session, String userMessage, String provider) {
         try {
             String prompt = String.format("为以下用户的提问提炼主题并生成一个一句话标题（注意：标题中不要含有\"用户\"等主语的描述，只是一段概括）：\n用户：%s", userMessage);
 
-            List<QwenChatRequest.QwenMessage> messages = List.of(
-                QwenChatRequest.QwenMessage.builder()
-                    .role("system")
-                    .content("你是一个标题生成助手，只返回标题文字，不要任何解释。")
-                    .build(),
-                QwenChatRequest.QwenMessage.builder()
-                    .role("user")
-                    .content(prompt)
-                    .build()
-            );
+            // 使用 LangChain4j 生成标题（同步调用，不需要流式）
+            String title = langChain4jService.chat(provider, "title-gen-" + session.getId(), prompt);
+            String cleanedTitle = title.trim()
+                    .replaceAll("[^\\u4e00-\\u9fa5a-zA-Z0-9\\s]", "");
 
-            QwenChatRequest qwenRequest = QwenChatRequest.builder()
-                .messages(messages)
-                .build();
-
-            // 创建客户端（不需要工具）
-            QwenChatClient qwenChatClient = QwenChatClient.builder()
-                .config(qwenConfig)
-                .restTemplate(qwenRestTemplate)
-                .objectMapper(objectMapper)
-                .build();
-
-            ChatResponse response = qwenChatClient.chat(qwenRequest);
-            String content = response.getContent();
-            String title = content.trim()
-                .replaceAll("[^\\u4e00-\\u9fa5a-zA-Z0-9\\s]", "");
-
-            session.setTitle(title);
+            session.setTitle(cleanedTitle);
             sessionMapper.updateById(session);
+
+            log.info("生成会话标题成功: {}", cleanedTitle);
         } catch (Exception e) {
             log.error("生成标题失败", e);
             session.setTitle("新对话");

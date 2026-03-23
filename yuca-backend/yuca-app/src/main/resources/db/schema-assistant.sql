@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS assistant_session (
     id              BIGSERIAL PRIMARY KEY,
     user_id         BIGINT NOT NULL,               -- 用户ID，关联user表
     title           VARCHAR(255),                  -- 会话标题（AI自动生成）
-    model_name      VARCHAR(50) DEFAULT 'qwen-plus', -- 使用的模型名称
     created_at      TIMESTAMP DEFAULT NOW(),       -- 创建时间
     updated_at      TIMESTAMP DEFAULT NOW(),       -- 最后更新时间
     deleted         INTEGER DEFAULT 0              -- 软删除标记: 1-已删除, 0-未删除
@@ -20,7 +19,6 @@ CREATE INDEX IF NOT EXISTS idx_assistant_session_deleted ON assistant_session(de
 -- 注释
 COMMENT ON TABLE assistant_session IS 'AI助手会话表';
 COMMENT ON COLUMN assistant_session.title IS '会话标题，首次对话后由AI生成';
-COMMENT ON COLUMN assistant_session.model_name IS '使用的模型：qwen-plus/qwen-max等';
 
 -- 消息表
 CREATE TABLE IF NOT EXISTS assistant_message (
@@ -28,6 +26,7 @@ CREATE TABLE IF NOT EXISTS assistant_message (
     session_id      BIGINT NOT NULL,               -- 会话ID
     role            VARCHAR(20) NOT NULL,          -- 角色：user/assistant/system
     content         TEXT NOT NULL,                 -- 消息内容
+    model_name      VARCHAR(50),                   -- 使用的模型名称（仅assistant角色消息有值）
     created_at      TIMESTAMP DEFAULT NOW()        -- 创建时间
 );
 

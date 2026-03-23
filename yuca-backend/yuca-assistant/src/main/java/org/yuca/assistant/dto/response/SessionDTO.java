@@ -31,11 +31,6 @@ public class SessionDTO {
     private String title;
 
     /**
-     * 模型名称
-     */
-    private String modelName;
-
-    /**
      * 创建时间
      */
     private LocalDateTime createdAt;

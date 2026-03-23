@@ -4,23 +4,25 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import dev.langchain4j.data.document.Document;
+import dev.langchain4j.model.embedding.EmbeddingModel;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.yuca.ai.service.LangChain4jService;
+import org.yuca.common.exception.BusinessException;
+import org.yuca.common.response.ErrorCode;
+import org.yuca.infrastructure.storage.dto.UploadResult;
+import org.yuca.infrastructure.storage.service.FileStorageService;
 import org.yuca.knowledge.dto.response.KnowledgeDocResponse;
+import org.yuca.knowledge.entity.KnowledgeChunk;
 import org.yuca.knowledge.entity.KnowledgeDoc;
+import org.yuca.knowledge.entity.KnowledgeBase;
 import org.yuca.knowledge.mapper.KnowledgeBaseMapper;
 import org.yuca.knowledge.mapper.KnowledgeChunkMapper;
 import org.yuca.knowledge.mapper.KnowledgeDocMapper;
-import org.yuca.common.exception.BusinessException;
-import org.yuca.common.response.ErrorCode;
-import org.yuca.infrastructure.storage.service.FileStorageService;
-import org.yuca.infrastructure.storage.dto.UploadResult;
-import org.yuca.knowledge.entity.KnowledgeBase;
-import org.yuca.knowledge.entity.KnowledgeChunk;
 import org.yuca.knowledge.util.DocumentParser;
 
 import java.util.List;
@@ -28,6 +30,7 @@ import java.util.stream.Collectors;
 
 /**
  * 知识库文档服务实现
+ * 基于 LangChain4j 框架
  *
  * @author Yuca
  * @since 2025-01-27
@@ -46,7 +49,7 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
     private KnowledgeChunkMapper knowledgeChunkMapper;
 
     @Autowired
-    private org.yuca.ai.client.AIEmbeddingClient embeddingClient;
+    private LangChain4jService langChain4jService;
 
     @Autowired
     private FileStorageService fileStorageService;
@@ -224,22 +227,32 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
 
     /**
      * 保存文档切片
+     * 使用 LangChain4j 生成嵌入向量
      */
     private void saveChunks(Long docId, Long kbId, List<Document> chunks) {
+        // 提取文本内容
         List<String> texts = chunks.stream()
-                .map(Document::getText)
+                .map(doc -> {
+                    // LangChain4j Document 的 text() 方法
+                    return doc.text();
+                })
                 .collect(Collectors.toList());
 
-        // 批量生成向量
-        List<Double[]> embeddings = embeddingClient.batchEmbed(texts);
+        // TODO: 使用 LangChain4j 批量生成嵌入向量
+        // 注意：需要在 LangChain4jService 中添加嵌入功能
+        // 目前暂时使用空向量，后续需要实现
+        log.warn("嵌入向量生成功能待实现，当前使用空向量");
 
         // 保存切片
         for (int i = 0; i < chunks.size(); i++) {
             KnowledgeChunk chunk = new KnowledgeChunk();
             chunk.setDocId(docId);
             chunk.setKbId(kbId);
-            chunk.setContent(chunks.get(i).getText());
-            chunk.setEmbedding(embeddings.get(i));
+            chunk.setContent(chunks.get(i).text());
+
+            // TODO: 生成实际的嵌入向量
+            // chunk.setEmbedding(embeddings.get(i));
+
             chunk.setChunkIndex(i);
             chunk.setIsActive(true);
 
