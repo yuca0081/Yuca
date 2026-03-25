@@ -13,10 +13,6 @@
     <name>yuca-knowledge</name>
     <description>Knowledge base module (depends on yuca-ai)</description>
 
-    <properties>
-        <langchain4j.version>0.36.2</langchain4j.version>
-    </properties>
-
     <dependencies>
         <!-- yuca-common -->
         <dependency>
@@ -36,25 +32,16 @@
             <artifactId>yuca-ai</artifactId>
         </dependency>
 
-        <!-- LangChain4j Document Parser -->
-        <dependency>
-            <groupId>dev.langchain4j</groupId>
-            <artifactId>langchain4j-document-parser</artifactId>
-            <version>${langchain4j.version}</version>
-        </dependency>
-
-        <!-- LangChain4j Apache PDF Parser -->
-        <dependency>
-            <groupId>dev.langchain4j</groupId>
-            <artifactId>langchain4j-document-parser-apache-pdf</artifactId>
-            <version>${langchain4j.version}</version>
-        </dependency>
-
         <!-- LangChain4j Apache POI Parser -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-document-parser-apache-poi</artifactId>
-            <version>${langchain4j.version}</version>
+        </dependency>
+
+        <!-- LangChain4j Apache PDFBox Parser -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-document-parser-apache-pdfbox</artifactId>
         </dependency>
 
         <!-- Apache POI for DOCX processing -->

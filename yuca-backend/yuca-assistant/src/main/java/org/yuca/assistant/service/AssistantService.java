@@ -2,36 +2,31 @@ package org.yuca.assistant.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.output.Response;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import org.yuca.ai.model.MessageRole;
-import org.yuca.ai.service.LangChain4jService;
+import org.yuca.ai.AiClient;
 import org.yuca.assistant.dto.request.AssistantChatRequest;
 import org.yuca.assistant.dto.response.MessageDTO;
 import org.yuca.assistant.dto.response.SessionDTO;
-import org.yuca.assistant.entity.AssistantMessage;
-import org.yuca.assistant.mapper.AssistantSessionMapper;
 import org.yuca.assistant.dto.sse.SseEvent;
+import org.yuca.assistant.entity.AssistantMessage;
 import org.yuca.assistant.entity.AssistantSession;
 import org.yuca.assistant.mapper.AssistantMessageMapper;
+import org.yuca.assistant.mapper.AssistantSessionMapper;
 import org.yuca.common.exception.BusinessException;
-
+import dev.langchain4j.model.chat.request.ChatRequest;
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * AI助手业务服务
@@ -44,18 +39,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 public class AssistantService {
 
-    @Autowired
-    private LangChain4jService langChain4jService;
+    // 消息角色常量
+    private static final String ROLE_USER = "user";
+    private static final String ROLE_ASSISTANT = "assistant";
 
     @Autowired
-    private ApplicationContext applicationContext;
-
-    private final ObjectMapper objectMapper;
-    private final AssistantMessageMapper messageMapper;
-    private final AssistantSessionMapper sessionMapper;
-
-    @Value("${assistant.max-context-messages:20}")
-    private Integer maxContextMessages;
+    private AiClient aiClient;
+    @Autowired
+    private ObjectMapper objectMapper;
+    @Autowired
+    private AssistantMessageMapper messageMapper;
+    @Autowired
+    private AssistantSessionMapper sessionMapper;
 
     /**
      * 处理聊天请求（SSE流式）
@@ -84,31 +79,24 @@ public class AssistantService {
             // 3. 发送开始事件
             sendSseEvent(emitter, response, new SseEvent.SseStartEvent(userMessage.getId()));
 
-            // 4. 确定使用的模型（从请求中获取，或使用默认值）
-            String provider = request.getModelName();
-            if (provider == null || provider.isEmpty()) {
-                provider = "qwen"; // 默认使用千问
-            }
+            // 4. 准备历史消息（从数据库获取会话历史）
+            List<ChatMessage> chatMessages = buildChatMessages(request.getSessionId());
+            // 添加当前用户消息
+            chatMessages.add(new UserMessage(request.getContent()));
 
-            // 5. 准备工具列表（可选）
-            List<Object> tools = new ArrayList<>();
-            // 添加时间工具
-            tools.add(applicationContext.getBean("timeTools"));
-            // 添加计算器工具
-            tools.add(applicationContext.getBean("calculatorTools"));
+            // 5. 构建 ChatRequest
+            ChatRequest chatRequest = ChatRequest.builder()
+                    .messages(chatMessages)
+                    .build();
 
-            log.info("使用模型提供商: {}, 可用工具数量: {}", provider, tools.size());
-
-            // 6. 使用 LangChain4j 进行流式聊天
             StringBuilder fullResponse = new StringBuilder();
             long tokenStartTime = System.currentTimeMillis();
             AtomicInteger tokenCount = new AtomicInteger(0);
+            AtomicReference<ChatResponse> aiResponseRef = new AtomicReference<>();
 
-            // 调用 LangChain4j 流式聊天
-            Response<AiMessage> aiResponse = langChain4jService.chatStreamWithResponse(
-                    provider,
-                    request.getSessionId().toString(),
-                    request.getContent(),
+            // 调用 AiClient 流式聊天
+            aiClient.streamChat(
+                    chatRequest,
                     token -> {
                         int currentTokenNum = tokenCount.incrementAndGet();
                         long tokenTime = System.currentTimeMillis() - tokenStartTime;
@@ -118,10 +106,15 @@ public class AssistantService {
                         // 发送token到前端
                         fullResponse.append(token);
                         sendSseEvent(emitter, response, new SseEvent.SseTokenEvent(token));
+                    },
+                    aiResponse -> {
+                        // 保存完整的 ChatResponse 以获取 token 统计
+                        aiResponseRef.set(aiResponse);
                     }
             );
 
             // 准备token使用数据
+            ChatResponse aiResponse = aiResponseRef.get();
             Integer inputTokens = null;
             Integer outputTokens = null;
             Integer totalTokens = null;
@@ -139,8 +132,8 @@ public class AssistantService {
             AssistantMessage assistantMessage = saveAssistantMessage(
                     request.getSessionId(),
                     fullResponse.toString(),
-                    provider,  // 使用模型提供商名称
-                    null,  // LangChain4j 基础版本不支持思考内容分离
+                    "qwen3.5-flash",
+                    null,  // 暂不支持思考内容分离
                     inputTokens,
                     outputTokens,
                     null,  // 不包含详细的 prompt tokens details
@@ -162,7 +155,7 @@ public class AssistantService {
 
             // 生成标题（首次对话）
             if (session.getTitle() == null || session.getTitle().isEmpty()) {
-                generateTitle(session, request.getContent(), provider);
+                generateTitle(session, request.getContent());
             }
 
             long totalDuration = System.currentTimeMillis() - startTime;
@@ -265,10 +258,35 @@ public class AssistantService {
 
     // ==================== 私有辅助方法 ====================
 
+    /**
+     * 构建聊天消息历史（用于 LangChain4j）
+     */
+    private List<ChatMessage> buildChatMessages(Long sessionId) {
+        LambdaQueryWrapper<AssistantMessage> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(AssistantMessage::getSessionId, sessionId)
+            .orderByAsc(AssistantMessage::getCreatedAt);
+
+        List<AssistantMessage> messages = messageMapper.selectList(wrapper);
+
+        // 转换为 LangChain4j ChatMessage
+        return messages.stream()
+            .map(msg -> {
+                String role = msg.getRole();
+                String content = msg.getContent();
+
+                return switch (role) {
+                    case ROLE_USER -> new UserMessage(content);
+                    case ROLE_ASSISTANT -> new dev.langchain4j.data.message.AiMessage(content);
+                    default -> throw new IllegalStateException("Unknown message role: " + role);
+                };
+            })
+            .toList();
+    }
+
     private AssistantMessage saveUserMessage(Long sessionId, String content) {
         AssistantMessage message = AssistantMessage.builder()
             .sessionId(sessionId)
-            .role(MessageRole.USER.getRole())
+            .role(ROLE_USER)
             .content(content)
             .createdAt(LocalDateTime.now())
             .build();
@@ -282,7 +300,7 @@ public class AssistantService {
                                                   String promptTokensDetails, Integer totalTokens) {
         AssistantMessage message = AssistantMessage.builder()
             .sessionId(sessionId)
-            .role(MessageRole.ASSISTANT.getRole())
+            .role(ROLE_ASSISTANT)
             .content(content)
             .modelName(modelName)
             .thinkingContent(thinkingContent)
@@ -296,12 +314,12 @@ public class AssistantService {
         return message;
     }
 
-    private void generateTitle(AssistantSession session, String userMessage, String provider) {
+    private void generateTitle(AssistantSession session, String userMessage) {
         try {
             String prompt = String.format("为以下用户的提问提炼主题并生成一个一句话标题（注意：标题中不要含有\"用户\"等主语的描述，只是一段概括）：\n用户：%s", userMessage);
 
-            // 使用 LangChain4j 生成标题（同步调用，不需要流式）
-            String title = langChain4jService.chat(provider, "title-gen-" + session.getId(), prompt);
+            // 使用 AiClient 生成标题（同步调用）
+            String title = aiClient.simpleChat(prompt);
             String cleanedTitle = title.trim()
                     .replaceAll("[^\\u4e00-\\u9fa5a-zA-Z0-9\\s]", "");
 

@@ -5,13 +5,14 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import dev.langchain4j.data.document.Document;
-import dev.langchain4j.model.embedding.EmbeddingModel;
+import dev.langchain4j.data.document.DocumentSplitter;
+import dev.langchain4j.data.document.splitter.DocumentByCharacterSplitter;
+import dev.langchain4j.data.segment.TextSegment;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import org.yuca.ai.service.LangChain4jService;
 import org.yuca.common.exception.BusinessException;
 import org.yuca.common.response.ErrorCode;
 import org.yuca.infrastructure.storage.dto.UploadResult;
@@ -23,8 +24,10 @@ import org.yuca.knowledge.entity.KnowledgeBase;
 import org.yuca.knowledge.mapper.KnowledgeBaseMapper;
 import org.yuca.knowledge.mapper.KnowledgeChunkMapper;
 import org.yuca.knowledge.mapper.KnowledgeDocMapper;
-import org.yuca.knowledge.util.DocumentParser;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -47,9 +50,6 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
 
     @Autowired
     private KnowledgeChunkMapper knowledgeChunkMapper;
-
-    @Autowired
-    private LangChain4jService langChain4jService;
 
     @Autowired
     private FileStorageService fileStorageService;
@@ -83,9 +83,15 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
         String fileFormat = getFileFormat(file.getOriginalFilename());
 
         // 解析文档并切片
-        List<Document> chunks;
+        List<TextSegment> chunks = new ArrayList<>();
         try {
-            chunks = DocumentParser.parseAndSplit(file.getBytes(), file.getOriginalFilename(), fileFormat);
+            byte[] bytes = file.getBytes();
+            String content = new String(bytes, StandardCharsets.UTF_8);
+            Document document = Document.from(content);
+            DocumentByCharacterSplitter splitter = new DocumentByCharacterSplitter(100, 10);
+            chunks = splitter.split(document);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         } catch (Exception e) {
             log.error("文档解析失败: {}", e.getMessage(), e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文档解析失败: " + e.getMessage());
@@ -229,11 +235,10 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
      * 保存文档切片
      * 使用 LangChain4j 生成嵌入向量
      */
-    private void saveChunks(Long docId, Long kbId, List<Document> chunks) {
+    private void saveChunks(Long docId, Long kbId, List<TextSegment> chunks) {
         // 提取文本内容
         List<String> texts = chunks.stream()
                 .map(doc -> {
-                    // LangChain4j Document 的 text() 方法
                     return doc.text();
                 })
                 .collect(Collectors.toList());
@@ -277,11 +282,6 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
         String fileName = file.getOriginalFilename();
         if (fileName == null) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "文件名不能为空");
-        }
-
-        String fileFormat = getFileFormat(fileName);
-        if (!DocumentParser.isFormatSupported(fileFormat)) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR, "不支持的文件格式: " + fileFormat);
         }
     }
 
