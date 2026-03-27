@@ -3,30 +3,26 @@ package org.yuca.ai;
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversation;
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationParam;
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationResult;
-import com.alibaba.dashscope.common.MultiModalMessage;
-import com.alibaba.dashscope.common.Role;
 import com.alibaba.dashscope.exception.NoApiKeyException;
 import com.alibaba.dashscope.exception.UploadFileException;
-import dev.langchain4j.community.model.dashscope.QwenChatModel;
-import dev.langchain4j.community.model.dashscope.QwenChatRequestParameters;
 import dev.langchain4j.community.model.dashscope.QwenStreamingChatModel;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.*;
+import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
+import dev.langchain4j.service.AiServices;
 import io.reactivex.Flowable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.yuca.ai.service.Assistant;
+import org.yuca.ai.service.NoteAssistant;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -49,7 +45,6 @@ import static org.mockito.Mockito.*;
 class AiClientTest {
 
     private AiClient aiClient;
-
 
     @Mock
     private QwenStreamingChatModel mockStreamingModel;
@@ -80,8 +75,8 @@ class AiClientTest {
 
             // When & Then
             IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> aiClient.simpleChat(nullMessage)
+                    IllegalArgumentException.class,
+                    () -> aiClient.simpleChat(nullMessage)
             );
 
             assertEquals("Message cannot be null or empty", exception.getMessage());
@@ -95,8 +90,8 @@ class AiClientTest {
 
             // When & Then
             IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> aiClient.simpleChat(emptyMessage)
+                    IllegalArgumentException.class,
+                    () -> aiClient.simpleChat(emptyMessage)
             );
 
             assertEquals("Message cannot be null or empty", exception.getMessage());
@@ -110,8 +105,8 @@ class AiClientTest {
 
             // When & Then
             IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> aiClient.simpleChat(blankMessage)
+                    IllegalArgumentException.class,
+                    () -> aiClient.simpleChat(blankMessage)
             );
 
             assertEquals("Message cannot be null or empty", exception.getMessage());
@@ -128,8 +123,8 @@ class AiClientTest {
             String validMessage = "Hello, AI!";
 
             // When & Then
-             String response = aiClient.simpleChat(validMessage);
-             assertNotNull(response);
+            String response = aiClient.simpleChat(validMessage);
+            assertNotNull(response);
 
             // 当前实现的测试：
             assertDoesNotThrow(() -> {
@@ -148,8 +143,8 @@ class AiClientTest {
         void testChat_NullRequest_ThrowsException() {
             // When & Then
             IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> aiClient.chat(null)
+                    IllegalArgumentException.class,
+                    () -> aiClient.chat(null)
             );
 
             assertEquals("ChatRequest cannot be null", exception.getMessage());
@@ -164,8 +159,8 @@ class AiClientTest {
 
             // When & Then
             IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> aiClient.chat(requestWithNullMessages)
+                    IllegalArgumentException.class,
+                    () -> aiClient.chat(requestWithNullMessages)
             );
 
             assertEquals("Message cannot be null or empty", exception.getMessage());
@@ -218,7 +213,8 @@ class AiClientTest {
             AtomicReference<ChatResponse> receivedResponse = new AtomicReference<>();
             Consumer<ChatResponse> responseConsumer = response -> receivedResponse.set(response);
 
-            Consumer<String> tokenConsumer = token -> {};
+            Consumer<String> tokenConsumer = token -> {
+            };
 
             // When & Then
             assertDoesNotThrow(() -> {
@@ -232,7 +228,8 @@ class AiClientTest {
             // Given
             ChatRequest request = mock(ChatRequest.class);
             when(request.messages()).thenReturn(List.of());
-            Consumer<String> tokenConsumer = token -> {};
+            Consumer<String> tokenConsumer = token -> {
+            };
 
             // When & Then
             assertDoesNotThrow(() -> {
@@ -247,6 +244,21 @@ class AiClientTest {
             StreamingChatModel model = QwenStreamingChatModel.builder()
                     .apiKey("sk-4632c16e41c64e738d3b4147aa58581f")
                     .modelName("qwen3.5-flash")
+                    .build();
+            Assistant assistant = AiServices.create(Assistant.class, model);
+            String chat = assistant.chat("你好");
+            System.out.println(chat);
+//            model.chat("Tell me a joke", onPartialResponse(System.out::print));
+        }
+
+        @Test
+        @DisplayName("流式聊天应正常返回回答并打印内容")
+        void testStreamChat_open_ai() {
+            StringBuilder builder = new StringBuilder();
+            StreamingChatModel model = OpenAiStreamingChatModel.builder()
+                    .apiKey("sk-ab7e874a544048679d9e8d72d06249e0")
+                    .baseUrl("https://api.deepseek.com/v1")
+                    .modelName("deepseek-chat")
                     .build();
 
             String userMessage = "Tell me a joke";
@@ -286,89 +298,89 @@ class AiClientTest {
             });
             System.out.println(builder.toString());
         }
-    }
 
-    @Test
-    @DisplayName("流式聊天应正常返回回答并打印内容")
-    void testStreamChat_conversation() {
-        MultiModalConversation conv = new MultiModalConversation();
-        MultiModalConversationParam param = MultiModalConversationParam.builder()
-                .apiKey("sk-4632c16e41c64e738d3b4147aa58581f")
-                .model("qwen3.5-flash")  // 可按需更换为其它多模态模型，并修改相应的 messages
-                .message("你好")
-                .incrementalOutput(true)
-                .build();
-        Flowable<MultiModalConversationResult> result = null;
-        try {
-            result = conv.streamCall(param);
-        } catch (NoApiKeyException e) {
-            throw new RuntimeException(e);
-        } catch (UploadFileException e) {
-            throw new RuntimeException(e);
-        }
-        result.blockingForEach(item -> {
+        @Test
+        @DisplayName("流式聊天应正常返回回答并打印内容")
+        void testStreamChat_conversation() {
+            MultiModalConversation conv = new MultiModalConversation();
+            MultiModalConversationParam param = MultiModalConversationParam.builder()
+                    .apiKey("sk-4632c16e41c64e738d3b4147aa58581f")
+                    .model("qwen3.5-flash")  // 可按需更换为其它多模态模型，并修改相应的 messages
+                    .message("你好")
+                    .incrementalOutput(true)
+                    .build();
+            Flowable<MultiModalConversationResult> result = null;
             try {
-                var content = item.getOutput().getChoices().get(0).getMessage().getContent();
-                // 判断content是否存在且不为空
-                if (content != null &&  !content.isEmpty()) {
-                    System.out.println(content.get(0).get("text"));
-                }
-            } catch (Exception e) {
-                System.out.println(e.getMessage());
+                result = conv.streamCall(param);
+            } catch (NoApiKeyException e) {
+                throw new RuntimeException(e);
+            } catch (UploadFileException e) {
+                throw new RuntimeException(e);
             }
-        });
-    }
-
-    @Nested
-    @DisplayName("Error Handling Tests")
-    class ErrorHandlingTests {
-
-        @Test
-        @DisplayName("Should wrap API exceptions in RuntimeException")
-        void testApiException_WrappedInRuntimeException() {
-            // This test verifies exception handling behavior
-            // In production with mocked model:
-            // when(mockChatModel.chat(any())).thenThrow(new RuntimeException("API Error"));
-
-            RuntimeException exception = assertThrows(
-                RuntimeException.class,
-                () -> aiClient.simpleChat("test message")
-            );
-
-            assertTrue(exception.getMessage().contains("Failed to get AI response"));
-        }
-    }
-
-    @Nested
-    @DisplayName("Integration-Style Tests")
-    class IntegrationTests {
-
-        @Test
-        @DisplayName("End-to-end flow for simpleChat")
-        void testSimpleChat_EndToEnd() {
-            // This test demonstrates the expected flow
-            // In a real integration test with test API key:
-            // String response = aiClient.simpleChat("Say 'test passed'");
-            // assertTrue(response.contains("test passed"));
-
-            // For unit test, we verify the method structure
-            assertDoesNotThrow(() -> {
-                // Verify method signature and basic flow
-                java.lang.reflect.Method method = AiClient.class.getMethod("simpleChat", String.class);
-                assertEquals(String.class, method.getReturnType());
+            result.blockingForEach(item -> {
+                try {
+                    var content = item.getOutput().getChoices().get(0).getMessage().getContent();
+                    // 判断content是否存在且不为空
+                    if (content != null && !content.isEmpty()) {
+                        System.out.println(content.get(0).get("text"));
+                    }
+                } catch (Exception e) {
+                    System.out.println(e.getMessage());
+                }
             });
         }
 
-        @Test
-        @DisplayName("Verify public API surface")
-        void testPublicApiSurface() {
-            // Verify all public methods exist
-            assertDoesNotThrow(() -> {
-                AiClient.class.getMethod("simpleChat", String.class);
-                AiClient.class.getMethod("chat", ChatRequest.class);
-                AiClient.class.getMethod("streamChat", ChatRequest.class, Consumer.class, Consumer.class);
-                AiClient.class.getMethod("streamChat", ChatRequest.class, Consumer.class);
-            });
+        @Nested
+        @DisplayName("Error Handling Tests")
+        class ErrorHandlingTests {
+
+            @Test
+            @DisplayName("Should wrap API exceptions in RuntimeException")
+            void testApiException_WrappedInRuntimeException() {
+                // This test verifies exception handling behavior
+                // In production with mocked model:
+                // when(mockChatModel.chat(any())).thenThrow(new RuntimeException("API Error"));
+
+                RuntimeException exception = assertThrows(
+                        RuntimeException.class,
+                        () -> aiClient.simpleChat("test message")
+                );
+
+                assertTrue(exception.getMessage().contains("Failed to get AI response"));
+            }
+        }
+
+        @Nested
+        @DisplayName("Integration-Style Tests")
+        class IntegrationTests {
+
+            @Test
+            @DisplayName("End-to-end flow for simpleChat")
+            void testSimpleChat_EndToEnd() {
+                // This test demonstrates the expected flow
+                // In a real integration test with test API key:
+                // String response = aiClient.simpleChat("Say 'test passed'");
+                // assertTrue(response.contains("test passed"));
+
+                // For unit test, we verify the method structure
+                assertDoesNotThrow(() -> {
+                    // Verify method signature and basic flow
+                    java.lang.reflect.Method method = AiClient.class.getMethod("simpleChat", String.class);
+                    assertEquals(String.class, method.getReturnType());
+                });
+            }
+
+            @Test
+            @DisplayName("Verify public API surface")
+            void testPublicApiSurface() {
+                // Verify all public methods exist
+                assertDoesNotThrow(() -> {
+                    AiClient.class.getMethod("simpleChat", String.class);
+                    AiClient.class.getMethod("chat", ChatRequest.class);
+                    AiClient.class.getMethod("streamChat", ChatRequest.class, Consumer.class, Consumer.class);
+                    AiClient.class.getMethod("streamChat", ChatRequest.class, Consumer.class);
+                });
+            }
         }
     }
 }

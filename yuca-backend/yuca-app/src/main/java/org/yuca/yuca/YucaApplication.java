@@ -3,8 +3,10 @@ package org.yuca.yuca;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 @SpringBootApplication(scanBasePackages = "org.yuca")
+@ConfigurationPropertiesScan(basePackages = "org.yuca")
 @MapperScan({
     "org.yuca.user.mapper",
     "org.yuca.infrastructure.storage.mapper",

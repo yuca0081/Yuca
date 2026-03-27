@@ -1,14 +1,16 @@
 package org.yuca.ai;
 
 import dev.langchain4j.community.model.dashscope.QwenChatModel;
-import dev.langchain4j.community.model.dashscope.QwenLanguageModel;
 import dev.langchain4j.community.model.dashscope.QwenStreamingChatModel;
 
+import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
-import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
+import dev.langchain4j.service.AiServices;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.yuca.ai.service.Assistant;
+import reactor.core.publisher.Flux;
 
 import java.util.function.Consumer;
 
@@ -74,30 +76,26 @@ public class AiClient {
      * @param tokenConsumer consumer for streaming tokens
      * @param responseConsumer consumer for final response (with token usage)
      */
-    public void streamChat(ChatRequest request, Consumer<String> tokenConsumer, Consumer<ChatResponse> responseConsumer) {
-        QwenStreamingChatModel model = QwenStreamingChatModel.builder()
+    public Flux<String> streamChat(ChatRequest request, Consumer<String> tokenConsumer, Consumer<ChatResponse> responseConsumer) {
+
+        StreamingChatModel model = QwenStreamingChatModel.builder()
                 .apiKey("sk-4632c16e41c64e738d3b4147aa58581f")
                 .modelName("qwen3.5-flash")
                 .build();
-        model.chat(request, new StreamingChatResponseHandler() {
-            @Override
-            public void onPartialResponse(String partialResponse) {
-                tokenConsumer.accept(partialResponse);
-            }
-
-            @Override
-            public void onCompleteResponse(ChatResponse chatResponse) {
-                if (responseConsumer != null) {
-                    responseConsumer.accept(chatResponse);
-                }
-            }
-
-            @Override
-            public void onError(Throwable throwable) {
-                log.error("Error in stream chat", throwable);
-                throw new RuntimeException("Failed to get AI streaming response: " + throwable.getMessage(), throwable);
-            }
-        });
+        Assistant assistant = AiServices.create(Assistant.class, model);
+        Flux<String> chat = assistant.streamChat(request)
+                .doOnNext(token -> {
+                    log.info("流式输出: {}", token);
+                    System.out.print(token);
+                })
+                .doOnComplete(() -> {
+                    log.info("流式输出完成");
+                    System.out.println("\n[完成]");
+                })
+                .doOnError(error -> {
+                    log.error("流式输出错误", error);
+                });
+        return chat;
     }
 
     /**

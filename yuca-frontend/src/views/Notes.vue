@@ -164,7 +164,7 @@
         <!-- 编辑器视图 -->
         <div v-else-if="activeView === 'editor'" class="view-editor">
           <!-- 左侧：树形结构 -->
-          <div class="editor-sidebar">
+          <div class="editor-sidebar" :style="{ width: editorSidebarWidth + 'px' }">
             <div class="editor-sidebar-header">
               <h3 class="sidebar-title">{{ currentBook?.name }}</h3>
               <n-button text size="small" @click="activeView = 'notebooks'">
@@ -202,8 +202,13 @@
             </div>
           </div>
 
-          <!-- 分隔条 -->
-          <div class="editor-divider"></div>
+          <!-- 可拖动分隔条 -->
+          <div
+            class="editor-resize-divider"
+            @mousedown="startEditorResize"
+          >
+            <div class="divider-line"></div>
+          </div>
 
           <!-- 右侧：编辑器 -->
           <div class="editor-main">
@@ -258,6 +263,36 @@
         </div>
       </template>
     </n-modal>
+
+    <!-- 创建文件夹弹窗 -->
+    <n-modal v-model:show="showCreateFolderModal" preset="card" title="新建文件夹" class="create-modal" style="width: 400px">
+      <n-form ref="createFolderFormRef" :model="createFolderForm" :rules="createFolderRules" label-placement="left" label-width="80">
+        <n-form-item label="文件夹名称" path="name">
+          <n-input v-model:value="createFolderForm.name" placeholder="请输入文件夹名称" @keyup.enter="handleConfirmCreateFolder" />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <n-button @click="showCreateFolderModal = false">取消</n-button>
+          <n-button type="primary" @click="handleConfirmCreateFolder" :loading="createFolderLoading">创建</n-button>
+        </div>
+      </template>
+    </n-modal>
+
+    <!-- 创建文档弹窗 -->
+    <n-modal v-model:show="showCreateDocumentModal" preset="card" title="新建文档" class="create-modal" style="width: 400px">
+      <n-form ref="createDocumentFormRef" :model="createDocumentForm" :rules="createDocumentRules" label-placement="left" label-width="80">
+        <n-form-item label="文档标题" path="title">
+          <n-input v-model:value="createDocumentForm.title" placeholder="请输入文档标题" @keyup.enter="handleConfirmCreateDocument" />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <n-button @click="showCreateDocumentModal = false">取消</n-button>
+          <n-button type="primary" @click="handleConfirmCreateDocument" :loading="createDocumentLoading">创建</n-button>
+        </div>
+      </template>
+    </n-modal>
   </div>
 </template>
 
@@ -307,6 +342,12 @@ const startX = ref(0)
 const startWidth = ref(20)
 const isCollapsed = ref(false)
 const savedWidth = ref(20)
+
+// 编辑器侧栏相关
+const editorSidebarWidth = ref(280)
+const isEditorResizing = ref(false)
+const editorStartX = ref(0)
+const editorStartWidth = ref(280)
 
 // 用户信息
 const userInitial = computed(() => {
@@ -366,6 +407,27 @@ const createForm = ref({
 const createRules = {
   name: { required: true, message: '请输入笔记本名称', trigger: 'blur' }
 }
+
+// 创建文件夹弹窗
+const showCreateFolderModal = ref(false)
+const createFolderLoading = ref(false)
+const createFolderForm = ref({
+  name: ''
+})
+const createFolderRules = {
+  name: { required: true, message: '请输入文件夹名称', trigger: 'blur' }
+}
+
+// 创建文档弹窗
+const showCreateDocumentModal = ref(false)
+const createDocumentLoading = ref(false)
+const createDocumentForm = ref({
+  title: ''
+})
+const createDocumentRules = {
+  title: { required: true, message: '请输入文档标题', trigger: 'blur' }
+}
+const currentParentId = ref<number | null>(null)
 
 // ========== 计算属性 ==========
 const noteBooks = computed(() => noteStore.noteBooks)
@@ -472,40 +534,60 @@ const handleCreateBook = async () => {
 // 创建文件夹
 const handleCreateFolder = async (parentId: number | null = null) => {
   if (!selectedBookId.value) return
+  currentParentId.value = parentId
+  createFolderForm.value.name = '新建文件夹'
+  showCreateFolderModal.value = true
+}
+
+// 确认创建文件夹
+const handleConfirmCreateFolder = async () => {
+  if (!selectedBookId.value) return
   try {
-    const title = prompt('请输入文件夹名称', '新建文件夹')
-    if (title) {
-      await noteStore.createItem({
-        bookId: selectedBookId.value,
-        parentId,
-        type: 'FOLDER',
-        title
-      })
-      message.success('文件夹创建成功')
-    }
+    createFolderLoading.value = true
+    await noteStore.createItem({
+      bookId: selectedBookId.value,
+      parentId: currentParentId.value,
+      type: 'FOLDER',
+      title: createFolderForm.value.name
+    })
+    message.success('文件夹创建成功')
+    showCreateFolderModal.value = false
+    createFolderForm.value.name = ''
   } catch (error: any) {
     message.error(error.message || '创建文件夹失败')
+  } finally {
+    createFolderLoading.value = false
   }
 }
 
 // 创建文档
 const handleCreateDocument = async (parentId: number | null = null) => {
   if (!selectedBookId.value) return
+  currentParentId.value = parentId
+  createDocumentForm.value.title = '新建文档'
+  showCreateDocumentModal.value = true
+}
+
+// 确认创建文档
+const handleConfirmCreateDocument = async () => {
+  if (!selectedBookId.value) return
   try {
-    const title = prompt('请输入文档标题', '新建文档')
-    if (title) {
-      await noteStore.createItem({
-        bookId: selectedBookId.value,
-        parentId,
-        type: 'DOCUMENT',
-        title,
-        content: '',
-        contentType: 'MARKDOWN'
-      })
-      message.success('文档创建成功')
-    }
+    createDocumentLoading.value = true
+    await noteStore.createItem({
+      bookId: selectedBookId.value,
+      parentId: currentParentId.value,
+      type: 'DOCUMENT',
+      title: createDocumentForm.value.title,
+      content: '',
+      contentType: 'MARKDOWN'
+    })
+    message.success('文档创建成功')
+    showCreateDocumentModal.value = false
+    createDocumentForm.value.title = ''
   } catch (error: any) {
     message.error(error.message || '创建文档失败')
+  } finally {
+    createDocumentLoading.value = false
   }
 }
 
@@ -613,6 +695,35 @@ const resetWidth = () => {
   sidebarWidth.value = 20
 }
 
+// 编辑器侧栏拖动
+const startEditorResize = (e: MouseEvent) => {
+  isEditorResizing.value = true
+  editorStartX.value = e.clientX
+  editorStartWidth.value = editorSidebarWidth.value
+
+  document.addEventListener('mousemove', onEditorResize)
+  document.addEventListener('mouseup', stopEditorResize)
+  e.preventDefault()
+}
+
+const onEditorResize = (e: MouseEvent) => {
+  if (!isEditorResizing.value) return
+
+  const deltaX = e.clientX - editorStartX.value
+  let newWidth = editorStartWidth.value + deltaX
+
+  // 限制最小和最大宽度
+  newWidth = Math.max(200, Math.min(600, newWidth))
+
+  editorSidebarWidth.value = newWidth
+}
+
+const stopEditorResize = () => {
+  isEditorResizing.value = false
+  document.removeEventListener('mousemove', onEditorResize)
+  document.removeEventListener('mouseup', stopEditorResize)
+}
+
 // 返回主页
 const goBackHome = () => {
   router.push('/')
@@ -633,6 +744,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeyDown)
+  document.removeEventListener('mousemove', onResize)
+  document.removeEventListener('mouseup', stopResize)
+  document.removeEventListener('mousemove', onEditorResize)
+  document.removeEventListener('mouseup', stopEditorResize)
 })
 </script>
 
@@ -825,8 +940,8 @@ export default {
 .search-input:focus {
   outline: none;
   background: rgba(255, 255, 255, 0.7);
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+  border-color: #4a5568;
+  box-shadow: 0 0 0 3px rgba(74, 85, 104, 0.1);
 }
 
 .sidebar-nav {
@@ -892,8 +1007,8 @@ export default {
 }
 
 .nb-item.active {
-  color: #14b8a6;
-  background: rgba(20, 184, 166, 0.1);
+  color: #4a5568;
+  background: rgba(74, 85, 104, 0.1);
   font-weight: 500;
 }
 
@@ -919,7 +1034,7 @@ export default {
 
 /* ========== 可拖动分隔条 ========== */
 .resize-divider {
-  width: 24px;
+  width: 16px;
   background: transparent;
   cursor: col-resize;
   position: relative;
@@ -932,7 +1047,7 @@ export default {
 }
 
 .resize-divider:hover {
-  background: rgba(20, 184, 166, 0.08);
+  background: rgba(74, 85, 104, 0.08);
 }
 
 .divider-line {
@@ -942,7 +1057,7 @@ export default {
   transform: translate(-50%, -50%);
   width: 2px;
   height: 40px;
-  background: rgba(20, 184, 166, 0.3);
+  background: rgba(74, 85, 104, 0.3);
   border-radius: 1px;
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -954,8 +1069,8 @@ export default {
 }
 
 .collapse-toggle-btn {
-  width: 24px;
-  height: 24px;
+  width: 18px;
+  height: 18px;
   border-radius: 6px;
   display: flex;
   align-items: center;
@@ -980,8 +1095,8 @@ export default {
 
 .collapse-toggle-btn:hover {
   background: rgba(255, 255, 255, 1);
-  border-color: rgba(20, 184, 166, 0.4);
-  color: #14b8a6;
+  border-color: rgba(74, 85, 104, 0.4);
+  color: #4a5568;
   transform: scale(1.08);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
@@ -1039,8 +1154,8 @@ export default {
 }
 
 .view-toggle :deep(.n-button.active) {
-  background: rgba(20, 184, 166, 0.15) !important;
-  color: #14b8a6 !important;
+  background: rgba(74, 85, 104, 0.15) !important;
+  color: #4a5568 !important;
 }
 
 .nb-section {
@@ -1101,11 +1216,14 @@ export default {
 }
 
 .editor-sidebar {
-  width: 280px;
+  min-width: 200px;
+  max-width: 600px;
   background: rgba(255, 255, 255, 0.3);
   border-right: 1px solid rgba(0, 0, 0, 0.06);
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
+  transition: none;
 }
 
 .editor-sidebar-header {
@@ -1137,6 +1255,42 @@ export default {
 .tree-container {
   flex: 1;
   overflow-y: auto;
+}
+
+/* 编辑器侧栏可拖动分隔条 */
+.editor-resize-divider {
+  width: 16px;
+  background: transparent;
+  cursor: col-resize;
+  position: relative;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.editor-resize-divider:hover {
+  background: rgba(74, 85, 104, 0.08);
+}
+
+.editor-resize-divider .divider-line {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 40px;
+  background: rgba(74, 85, 104, 0.3);
+  border-radius: 1px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.editor-resize-divider:hover .divider-line {
+  opacity: 1;
 }
 
 .editor-divider {
@@ -1268,10 +1422,14 @@ export default {
   }
 
   .editor-sidebar {
-    width: 100%;
+    width: 100% !important;
     height: 250px;
     border-right: none;
     border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  }
+
+  .editor-resize-divider {
+    display: none;
   }
 }
 
@@ -1296,6 +1454,6 @@ export default {
 :deep(.n-input__input-el:focus),
 :deep(.n-input__textarea-el:focus) {
   border-color: rgba(0, 0, 0, 0.2) !important;
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1) !important;
+  box-shadow: 0 0 0 3px rgba(74, 85, 104, 0.1) !important;
 }
 </style>

@@ -61,6 +61,12 @@
             <version>1.12.2-beta22</version>
         </dependency>
 
+        <!-- LangChain4j Agentic (for Agentic AI and workflow patterns) -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-agentic</artifactId>
+        </dependency>
+
         <!-- PostgreSQL pgvector for vector operations -->
         <dependency>
             <groupId>com.pgvector</groupId>

@@ -127,17 +127,3 @@ springdoc:
 assistant:
   max-context-messages: 20      # 上下文消息最大数量
   stream-timeout: 60000         # SSE流式响应超时时间（毫秒）
-
-# 知识库配置
-knowledge:
-  chunk:
-    size: 500              # 切片大小（字符数）
-    overlap: 50            # 切片重叠（字符数）
-  embedding:
-    dimension: 1536        # 向量维度
-    batch-size: 10         # 批处理大小
-  search:
-    default-top-k: 5       # 默认搜索返回数量
-    default-threshold: 0.7 # 默认相似度阈值
-  upload:
-    max-file-size: 52428800 # 最大文件大小（50MB）
