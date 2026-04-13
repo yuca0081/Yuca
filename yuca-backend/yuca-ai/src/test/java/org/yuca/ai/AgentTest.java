@@ -5,7 +5,6 @@ import dev.langchain4j.agentic.AgenticServices;
 import dev.langchain4j.agentic.Agent;
 import dev.langchain4j.agentic.agent.AgentInvocationException;
 import dev.langchain4j.agentic.agent.ErrorRecoveryResult;
-import dev.langchain4j.agentic.agent.ErrorContext;
 import dev.langchain4j.community.model.dashscope.QwenChatModel;
 import dev.langchain4j.community.model.dashscope.QwenStreamingChatModel;
 import dev.langchain4j.model.chat.ChatModel;
@@ -17,12 +16,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.yuca.ai.config.DashscopeProperties;
 import org.yuca.ai.tool.Calculator;
-
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -745,5 +740,75 @@ class AgentTest {
         System.out.println("=== Final Story ===");
         System.out.println(finalStory);
         System.out.println("===================");
+    }
+
+    // ==================== Memory 功能测试 ====================
+
+    /**
+     * 带 Memory 的聊天助手接口
+     */
+    public interface MemoryChatAssistant {
+        @SystemMessage("你是一个友好的AI助手，能够记住之前的对话内容。")
+        @Agent
+        String chat(String message);
+    }
+
+    @Test
+    @DisplayName("测试 12: Memory 功能 - 对话记忆")
+    void testMemoryFunctionality() {
+        if (shouldSkipTest()) {
+            System.out.println("DashScope properties not configured, skipping test");
+            return;
+        }
+
+        ChatModel chatModel = createChatModel();
+
+        // 创建带memory的聊天助手
+        var memory = dev.langchain4j.memory.chat.MessageWindowChatMemory.withMaxMessages(10);
+
+        MemoryChatAssistant assistant = AgenticServices
+                .agentBuilder(MemoryChatAssistant.class)
+                .chatModel(chatModel)
+                .chatMemory(memory)
+                .build();
+
+        System.out.println("\n========== 测试 Memory 功能 ==========");
+
+        System.out.println("\n第一轮对话:");
+        String response1 = assistant.chat("我叫张三，很高兴认识你");
+        System.out.println("用户: 我叫张三，很高兴认识你");
+        System.out.println("助手: " + response1);
+        assertNotNull(response1);
+
+        System.out.println("\n第二轮对话:");
+        String response2 = assistant.chat("我的名字是什么？");
+        System.out.println("用户: 我的名字是什么？");
+        System.out.println("助手: " + response2);
+        assertNotNull(response2);
+
+        // 验证助手记得用户的名字
+        assertTrue(response2.contains("张三") || response2.contains("Zhang"),
+                "助手应该记得用户的名字是张三");
+
+        System.out.println("\n第三轮对话:");
+        String response3 = assistant.chat("我最喜欢的颜色是蓝色");
+        System.out.println("用户: 我最喜欢的颜色是蓝色");
+        System.out.println("助手: " + response3);
+        assertNotNull(response3);
+
+        System.out.println("\n第四轮对话:");
+        String response4 = assistant.chat("我最喜欢什么颜色？");
+        System.out.println("用户: 我最喜欢什么颜色？");
+        System.out.println("助手: " + response4);
+        assertNotNull(response4);
+
+        // 验证助手记得用户的喜好
+        assertTrue(response4.contains("蓝色") || response4.contains("蓝"),
+                "助手应该记得用户最喜欢的颜色是蓝色");
+
+        System.out.println("\nMemory 状态:");
+        System.out.println("当前消息数: " + memory.messages().size());
+
+        System.out.println("\n========== Memory 功能测试完成 ==========");
     }
 }

@@ -20,6 +20,12 @@
             <artifactId>yuca-common</artifactId>
         </dependency>
 
+        <!-- yuca-infrastructure (for Redis) -->
+        <dependency>
+            <groupId>org.yuca</groupId>
+            <artifactId>yuca-infrastructure</artifactId>
+        </dependency>
+
         <!-- Spring Boot Web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -15,6 +15,11 @@ public class Calculator {
         return a + b;
     }
 
+    @Tool("计算两数的乘积")
+    int multiply(int a, int b) {
+        return a * b;
+    }
+
     @Tool("Calculates the square root of a number")
     double sqrt(int x) {
         System.out.println("Called sqrt with x=" + x);

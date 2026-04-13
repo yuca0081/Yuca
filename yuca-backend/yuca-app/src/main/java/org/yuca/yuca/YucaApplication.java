@@ -12,7 +12,8 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
     "org.yuca.infrastructure.storage.mapper",
     "org.yuca.knowledge.mapper",
     "org.yuca.note.mapper",
-    "org.yuca.assistant.mapper"
+    "org.yuca.assistant.mapper",
+    "org.yuca.ai.mapper"
 })
 public class YucaApplication {
 
