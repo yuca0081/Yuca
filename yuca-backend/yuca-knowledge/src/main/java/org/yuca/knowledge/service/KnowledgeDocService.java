@@ -246,7 +246,6 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
         // TODO: 使用 LangChain4j 批量生成嵌入向量
         // 注意：需要在 LangChain4jService 中添加嵌入功能
         // 目前暂时使用空向量，后续需要实现
-        log.warn("嵌入向量生成功能待实现，当前使用空向量");
 
         // 保存切片
         for (int i = 0; i < chunks.size(); i++) {

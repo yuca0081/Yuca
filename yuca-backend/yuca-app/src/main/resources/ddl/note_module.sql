@@ -54,11 +54,11 @@ CREATE TABLE IF NOT EXISTS note_item (
 
     -- 文档专用字段（FOLDER类型时为NULL）
     content         TEXT,                            -- 文档内容
-    content_type    VARCHAR(20) DEFAULT 'MARKDOWN',  -- 内容类型：MARKDOWN, RICH_TEXT
+    content_type    VARCHAR(20),                     -- 内容类型：MARKDOWN, RICH_TEXT
     summary         VARCHAR(500),                    -- 摘要（前500字）
-    status          VARCHAR(20) DEFAULT 'DRAFT',     -- 状态：DRAFT, PUBLISHED, ARCHIVED
-    view_count      INT DEFAULT 0,                   -- 浏览次数
-    word_count      INT DEFAULT 0,                   -- 字数统计
+    status          VARCHAR(20),                     -- 状态：DRAFT, PUBLISHED, ARCHIVED
+    view_count      INT,                             -- 浏览次数
+    word_count      INT,                             -- 字数统计
 
     -- 文件夹统计字段（DOCUMENT类型时为NULL）
     child_count     INT DEFAULT 0,                   -- 直接子项数量

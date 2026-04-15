@@ -11,7 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import org.yuca.ai.AiClient;
+import org.yuca.ai.service.ChatService;
 import org.yuca.assistant.dto.request.AssistantChatRequest;
 import org.yuca.assistant.dto.response.MessageDTO;
 import org.yuca.assistant.dto.response.SessionDTO;
@@ -44,7 +44,7 @@ public class AssistantService {
     private static final String ROLE_ASSISTANT = "assistant";
 
     @Autowired
-    private AiClient aiClient;
+    private ChatService chatService;
     @Autowired
     private ObjectMapper objectMapper;
     @Autowired
@@ -94,8 +94,8 @@ public class AssistantService {
             AtomicInteger tokenCount = new AtomicInteger(0);
             AtomicReference<ChatResponse> aiResponseRef = new AtomicReference<>();
 
-            // 调用 AiClient 流式聊天
-            aiClient.streamChat(
+            // 调用 ChatService 流式聊天
+            chatService.streamChat(
                     chatRequest,
                     token -> {
                         int currentTokenNum = tokenCount.incrementAndGet();
@@ -318,8 +318,8 @@ public class AssistantService {
         try {
             String prompt = String.format("为以下用户的提问提炼主题并生成一个一句话标题（注意：标题中不要含有\"用户\"等主语的描述，只是一段概括）：\n用户：%s", userMessage);
 
-            // 使用 AiClient 生成标题（同步调用）
-            String title = aiClient.simpleChat(prompt);
+            // 使用 ChatService 生成标题（同步调用）
+            String title = chatService.chat(prompt);
             String cleanedTitle = title.trim()
                     .replaceAll("[^\\u4e00-\\u9fa5a-zA-Z0-9\\s]", "");
 
