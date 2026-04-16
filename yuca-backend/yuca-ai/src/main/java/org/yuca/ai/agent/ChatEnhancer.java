@@ -4,10 +4,18 @@ import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 
 /**
- * 聊天拦截器接口
+ * 聊天增强器接口
  * 所有上下文工程（SystemPrompt、Memory、RAG、Skill）统一实现此接口
  */
-public interface ChatInterceptor {
+public interface ChatEnhancer {
+
+    /**
+     * 执行顺序，值越小越先执行
+     * 默认 0，相同顺序按添加顺序执行
+     */
+    default int order() {
+        return 0;
+    }
 
     /**
      * 在 Agent 调用 ChatModel 前执行，用于注入上下文
@@ -22,7 +30,7 @@ public interface ChatInterceptor {
      * 在 Agent 完成后（含工具循环）执行，用于副作用（保存记忆等）
      *
      * @param response 最终响应
-     * @param context  请求上下文
+     * @param context 请求上下文
      */
     void after(ChatResponse response, ChatContext context);
 }

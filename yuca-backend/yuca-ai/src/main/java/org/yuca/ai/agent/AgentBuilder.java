@@ -3,6 +3,7 @@ package org.yuca.ai.agent;
 import dev.langchain4j.model.chat.ChatModel;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -11,7 +12,7 @@ import java.util.List;
 public class AgentBuilder {
 
     private ChatModel chatModel;
-    private final List<ChatInterceptor> interceptors = new ArrayList<>();
+    private final List<ChatEnhancer> enhancers = new ArrayList<>();
     private ToolManager toolManager;
     private int maxToolRounds = 5;
 
@@ -20,13 +21,13 @@ public class AgentBuilder {
         return this;
     }
 
-    public AgentBuilder interceptor(ChatInterceptor interceptor) {
-        this.interceptors.add(interceptor);
+    public AgentBuilder enhancer(ChatEnhancer enhancer) {
+        this.enhancers.add(enhancer);
         return this;
     }
 
-    public AgentBuilder interceptors(List<ChatInterceptor> interceptors) {
-        this.interceptors.addAll(interceptors);
+    public AgentBuilder enhancers(List<ChatEnhancer> enhancers) {
+        this.enhancers.addAll(enhancers);
         return this;
     }
 
@@ -41,6 +42,8 @@ public class AgentBuilder {
     }
 
     public Agent build() {
-        return new Agent(chatModel, List.copyOf(interceptors), toolManager, maxToolRounds);
+        return new Agent(chatModel, enhancers.stream()
+                .sorted(Comparator.comparingInt(ChatEnhancer::order))
+                .toList(), toolManager, maxToolRounds);
     }
 }

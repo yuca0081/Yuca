@@ -12,8 +12,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.yuca.ai.agent.Agent;
 import org.yuca.ai.agent.ChatContext;
-import org.yuca.ai.agent.interceptor.MemoryInterceptor;
-import org.yuca.ai.agent.interceptor.SystemPromptInterceptor;
+import org.yuca.ai.agent.enhancer.MemoryEnhancer;
+import org.yuca.ai.agent.enhancer.SystemPromptEnhancer;
 import org.yuca.ai.config.AiProperties;
 import org.yuca.ai.memory.ChatMemoryStore;
 import reactor.core.publisher.Flux;
@@ -46,8 +46,8 @@ public class ChatServiceImpl implements ChatService {
 
         memoryAgent = Agent.builder()
                 .chatModel(chatModel)
-                .interceptor(new SystemPromptInterceptor("你是一个友好的AI助手，能够记住之前的对话内容。请用简洁、准确的方式回答用户的问题。"))
-                .interceptor(new MemoryInterceptor(memoryStore, aiProperties.getMemory().getMaxMessages()))
+                .enhancer(new SystemPromptEnhancer("你是一个友好的AI助手，能够记住之前的对话内容。请用简洁、准确的方式回答用户的问题。"))
+                .enhancer(new MemoryEnhancer(memoryStore, aiProperties.getMemory().getMaxMessages()))
                 .build();
     }
 

@@ -1,24 +1,24 @@
-package org.yuca.ai.agent.interceptor;
+package org.yuca.ai.agent.enhancer;
 
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import org.yuca.ai.agent.ChatContext;
-import org.yuca.ai.agent.ChatInterceptor;
+import org.yuca.ai.agent.ChatEnhancer;
 import org.yuca.ai.skill.SkillDefinition;
 
 import java.util.List;
 
 /**
- * Skill 拦截器
+ * 技能增强器
  * 将 Skill 模板展开为 UserMessage
  */
-public class SkillInterceptor implements ChatInterceptor {
+public class SkillEnhancer implements ChatEnhancer {
 
     private final SkillDefinition skill;
     private final String arguments;
 
-    public SkillInterceptor(SkillDefinition skill, String arguments) {
+    public SkillEnhancer(SkillDefinition skill, String arguments) {
         this.skill = skill;
         this.arguments = arguments;
     }

@@ -1,6 +1,5 @@
 package org.yuca.ai.controller;
 
-import dev.langchain4j.community.model.dashscope.QwenChatModel;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

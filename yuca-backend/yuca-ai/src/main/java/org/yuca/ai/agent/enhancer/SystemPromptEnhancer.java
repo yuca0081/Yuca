@@ -1,24 +1,24 @@
-package org.yuca.ai.agent.interceptor;
+package org.yuca.ai.agent.enhancer;
 
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import org.yuca.ai.agent.ChatContext;
-import org.yuca.ai.agent.ChatInterceptor;
+import org.yuca.ai.agent.ChatEnhancer;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 系统提示拦截器
+ * 系统提示增强器
  * 在消息头部插入 SystemMessage
  */
-public class SystemPromptInterceptor implements ChatInterceptor {
+public class SystemPromptEnhancer implements ChatEnhancer {
 
     private final String systemPrompt;
 
-    public SystemPromptInterceptor(String systemPrompt) {
+    public SystemPromptEnhancer(String systemPrompt) {
         this.systemPrompt = systemPrompt;
     }
 

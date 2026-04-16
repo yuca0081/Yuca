@@ -6,7 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
-import org.yuca.ai.handler.JsonbTypeHandler;
+import org.yuca.ai.memory.JsonbTypeHandler;
 
 import java.time.LocalDateTime;
 
