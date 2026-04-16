@@ -13,7 +13,7 @@ import java.util.List;
 
 /**
  * Agent 执行引擎
- * 拦截器链 + 工具调用循环
+ * 增强器链 + 工具调用循环
  */
 @Slf4j
 public class Agent {
@@ -36,7 +36,7 @@ public class Agent {
     }
 
     /**
-     * 执行 Agent：拦截器链 → 工具调用循环 → 拦截器链（反序）
+     * 执行 Agent：增强器链 → 工具调用循环 → 增强器链（反序）
      */
     public ChatResponse execute(ChatRequest request, ChatContext context) {
         // 1. 增强器链（注入上下文）
@@ -77,7 +77,8 @@ public class Agent {
 
         // 存储完整对话（含工具调用中间过程）供增强器使用
         List<ChatMessage> fullConversation = new ArrayList<>(messages);
-        if (response != null && response.aiMessage() != null) {
+        if (response != null && response.aiMessage() != null
+                && !response.aiMessage().hasToolExecutionRequests()) {
             fullConversation.add(response.aiMessage());
         }
         context.attribute("_agentConversation", fullConversation);

@@ -29,7 +29,7 @@ public class Conversation {
     private String sessionId;
 
     /**
-     * 消息类型：USER或AI
+     * 消息类型：USER、AI、TOOL、TOOL_RESULT、SYSTEM
      */
     private String messageType;
 

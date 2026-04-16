@@ -9,8 +9,11 @@ import org.springframework.stereotype.Component;
 import org.yuca.ai.entity.Conversation;
 import org.yuca.ai.mapper.ConversationMapper;
 
+import com.google.gson.reflect.TypeToken;
+
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * PostgreSQL 聊天记忆存储
@@ -84,8 +87,12 @@ public class PostgresChatMemoryStore implements ChatMemoryStore {
                 conversation.setContent(aiMsg.text());
             }
             case ToolExecutionResultMessage resultMsg -> {
-                // 工具执行结果暂不保存
-                return;
+                conversation.setMessageType("TOOL_RESULT");
+                conversation.setContent(resultMsg.text());
+                conversation.setToolCalls(gson.toJson(Map.of(
+                        "id", resultMsg.id() != null ? resultMsg.id() : "",
+                        "toolName", resultMsg.toolName() != null ? resultMsg.toolName() : ""
+                )));
             }
             default -> {
                 log.warn("未知消息类型: {}", message.type());
@@ -100,7 +107,23 @@ public class PostgresChatMemoryStore implements ChatMemoryStore {
         return switch (conversation.getMessageType()) {
             case "USER" -> UserMessage.from(conversation.getContent());
             case "SYSTEM" -> SystemMessage.from(conversation.getContent());
-            case "AI", "TOOL" -> AiMessage.from(conversation.getContent());
+            case "AI" -> AiMessage.from(conversation.getContent());
+            case "TOOL" -> {
+                List<ToolExecutionRequest> requests = gson.fromJson(
+                        conversation.getToolCalls(), new TypeToken<List<ToolExecutionRequest>>() {}.getType());
+                String text = conversation.getContent();
+                yield (text != null && !text.isEmpty())
+                        ? AiMessage.from(text, requests) : AiMessage.from(requests);
+            }
+            case "TOOL_RESULT" -> {
+                Map<String, String> toolInfo = gson.fromJson(
+                        conversation.getToolCalls(), new TypeToken<Map<String, String>>() {}.getType());
+                ToolExecutionRequest request = ToolExecutionRequest.builder()
+                        .id(toolInfo.getOrDefault("id", ""))
+                        .name(toolInfo.getOrDefault("toolName", ""))
+                        .build();
+                yield ToolExecutionResultMessage.from(request, conversation.getContent());
+            }
             default -> throw new IllegalArgumentException("未知消息类型: " + conversation.getMessageType());
         };
     }

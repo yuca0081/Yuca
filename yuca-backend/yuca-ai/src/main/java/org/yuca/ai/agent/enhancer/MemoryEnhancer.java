@@ -93,7 +93,7 @@ public class MemoryEnhancer implements ChatEnhancer {
             toSave = new ArrayList<>(userMessages.stream()
                     .filter(msg -> !(msg instanceof SystemMessage))
                     .toList());
-            ((List<ChatMessage>) toSave).add(response.aiMessage());
+            toSave.add(response.aiMessage());
         }
 
         if (!toSave.isEmpty()) {
