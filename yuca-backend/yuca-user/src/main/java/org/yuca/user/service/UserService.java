@@ -138,6 +138,16 @@ public class UserService {
         return passwordEncoder.matches(rawPassword, encodedPassword);
     }
 
+    /**
+     * 更新用户密码
+     */
+    public void updatePassword(Long userId, String encodedPassword) {
+        User user = findById(userId)
+            .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        user.setPassword(encodedPassword);
+        update(user);
+    }
+
     // ==================== 登录安全 ====================
 
     /**

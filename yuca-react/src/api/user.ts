@@ -1,5 +1,5 @@
 import request from './index'
-import type { LoginRequest, LoginResponse, User, RefreshTokenRequest, UpdateProfileRequest } from '@/types'
+import type { LoginRequest, LoginResponse, User, RefreshTokenRequest, UpdateProfileRequest, ResetPasswordRequest } from '@/types'
 
 export const login = (data: LoginRequest) =>
   request.post<LoginResponse>('/user/login', data)
@@ -29,3 +29,6 @@ export const uploadAvatar = (file: File) => {
 
 export const updateProfile = (data: UpdateProfileRequest) =>
   request.put<User>('/user/profile', data)
+
+export const resetPassword = (data: ResetPasswordRequest) =>
+  request.post<void>('/user/reset-password', data)

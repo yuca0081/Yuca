@@ -51,6 +51,11 @@ export interface UpdateProfileRequest {
   avatarUrl?: string
 }
 
+export interface ResetPasswordRequest {
+  account: string
+  newPassword: string
+}
+
 // Pagination
 export interface PageResponse<T> {
   records: T[]

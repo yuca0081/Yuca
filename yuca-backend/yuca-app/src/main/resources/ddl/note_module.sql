@@ -68,13 +68,6 @@ CREATE TABLE IF NOT EXISTS note_item (
     published_at    TIMESTAMP,                       -- 发布时间
     deleted         INT DEFAULT 0,                   -- 逻辑删除
 
-    -- 约束：文件夹类型时content必须为NULL
-    CONSTRAINT chk_note_item_folder_content CHECK (
-        (type = 'FOLDER' AND content IS NULL AND content_type IS NULL) OR
-        (type = 'DOCUMENT')
-    ),
-    -- 约束：type必须是有效值
-    CONSTRAINT chk_note_item_type CHECK (type IN ('FOLDER', 'DOCUMENT'))
 );
 
 COMMENT ON TABLE note_item IS '节点表（单表设计：文件夹和文档统一存储）';

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useUserStore } from '@/stores/user'
 import { login } from '@/api/user'
 import { Input } from '@/components/ui/input'
@@ -106,6 +106,12 @@ export default function Login() {
             )}
           </button>
         </form>
+
+        <div className="mt-6 text-center">
+          <Link to="/reset-password" className="text-sm text-[#FF6B35] hover:underline">
+            忘记密码？
+          </Link>
+        </div>
       </div>
     </div>
   )

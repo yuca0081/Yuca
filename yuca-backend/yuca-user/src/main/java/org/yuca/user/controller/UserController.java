@@ -15,6 +15,7 @@ import org.yuca.user.dto.internal.UserDTO;
 import org.yuca.user.dto.request.LoginRequest;
 import org.yuca.user.dto.request.RefreshTokenRequest;
 import org.yuca.user.dto.request.RegisterRequest;
+import org.yuca.user.dto.request.ResetPasswordRequest;
 import org.yuca.user.dto.request.UpdateProfileRequest;
 import org.yuca.user.dto.response.LoginResponse;
 import org.yuca.user.dto.response.TokenResponse;
@@ -84,6 +85,14 @@ public class UserController {
     public Result<TokenResponse> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
         TokenDTO tokenDTO = userApplicationService.refreshToken(request.getRefreshToken());
         return Result.success(toTokenResponse(tokenDTO));
+    }
+
+    @SkipAuth
+    @PostMapping("/reset-password")
+    @Operation(summary = "重置密码", description = "通过账号重置密码，无需验证")
+    public Result<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        userApplicationService.resetPassword(request.getAccount(), request.getNewPassword());
+        return Result.success("Password reset successful", null);
     }
 
     @GetMapping("/current")

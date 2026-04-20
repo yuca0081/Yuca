@@ -212,6 +212,26 @@ public class UserApplicationService {
         return toUserDTO(user);
     }
 
+    // ==================== 重置密码 ====================
+
+    /**
+     * 重置密码（无需验证，直接通过账号重置）
+     */
+    public void resetPassword(String account, String newPassword) {
+        // 查找用户
+        LoginType loginType = userService.identifyLoginType(account);
+        User user = userService.findUserByAccount(account, loginType);
+
+        // 加密新密码：SHA-256 → BCrypt
+        String sha256Hash = CryptoUtils.sha256Hex(newPassword);
+        String encodedPassword = userService.encodePassword(sha256Hash);
+
+        // 更新密码
+        userService.updatePassword(user.getId(), encodedPassword);
+
+        log.info("用户密码已重置: userId={}, account={}", user.getId(), account);
+    }
+
     // ==================== 个人资料管理 ====================
 
     /**
