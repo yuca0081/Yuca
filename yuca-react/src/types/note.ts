@@ -70,3 +70,16 @@ export interface UpdateItemRequest {
   isPinned?: boolean
   status?: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
 }
+
+export interface UpdateNoteBookRequest {
+  name?: string
+  description?: string
+  icon?: string
+  color?: string
+}
+
+export interface NoteTreeResponse {
+  id: number
+  name: string
+  nodes: TreeNode[]
+}

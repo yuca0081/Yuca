@@ -88,15 +88,13 @@ public class UserApplicationService {
             user = userService.findUserByAccount(account, loginType);
         } catch (IllegalArgumentException e) {
             userService.checkLoginFailLimit(account);
-            throw new IllegalArgumentException("Invalid account or password");
+            throw new IllegalArgumentException("Account not found");
         }
 
         // 验证用户状态
         userService.validateUserForLogin(user);
 
-        // 验证密码（支持新旧两种格式）
         // 新格式：前端发送 SHA-256(password)，数据库存储 BCrypt(SHA-256(password))
-        // 旧格式：前端发送明文密码，数据库存储 BCrypt(明文密码)
         boolean passwordMatches = userService.matchesPassword(password, user.getPassword());
 
         // 如果直接验证失败，尝试对前端发送的哈希值再哈希一次（兼容旧用户）
@@ -107,7 +105,7 @@ public class UserApplicationService {
 
         if (!passwordMatches) {
             userService.checkLoginFailLimit(account);
-            throw new IllegalArgumentException("Invalid account or password");
+            throw new IllegalArgumentException("Incorrect password");
         }
 
         // 登录成功，重置失败计数

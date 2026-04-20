@@ -41,4 +41,20 @@ export interface CreateKnowledgeBaseRequest {
   fileFormat?: string[]
 }
 
+export interface UpdateKnowledgeBaseRequest {
+  name?: string
+  description?: string
+}
+
+export interface KnowledgeChunk {
+  id: number
+  docId: number
+  kbId: number
+  content: string
+  chunkIndex: number
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export type { PageResponse }

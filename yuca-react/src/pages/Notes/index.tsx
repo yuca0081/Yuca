@@ -1,59 +1,206 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Plus, Folder, FolderOpen, FileText, Search, ChevronRight, ChevronDown } from 'lucide-react'
-
-interface TreeItem {
-  id: number
-  title: string
-  type: 'folder' | 'document'
-  children?: TreeItem[]
-  expanded?: boolean
-}
-
-const mockTree: TreeItem[] = []
+import { Plus, FileText, Search, ChevronDown, BookOpen } from 'lucide-react'
+import { NoteTree } from './NoteTree'
+import { NoteEditor } from './NoteEditor'
+import { CreateNoteBookDialog } from './CreateNoteBookDialog'
+import { CreateNoteItemDialog } from './CreateNoteItemDialog'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useAutoSave } from '@/hooks/useAutoSave'
+import { getNoteBooks, getNoteTree, getNoteItem, createNoteItem, updateNoteItem, deleteNoteItem, createNoteBook, deleteNoteBook } from '@/api/note'
+import type { NoteBook, TreeNode, NoteItem } from '@/types'
 
 export default function Notes() {
-  const [tree, setTree] = useState<TreeItem[]>(mockTree)
+  // Notebook state
+  const [noteBooks, setNoteBooks] = useState<NoteBook[]>([])
+  const [activeBookId, setActiveBookId] = useState<number | null>(null)
+  const [bookMenuOpen, setBookMenuOpen] = useState(false)
+
+  // Tree state
+  const [treeNodes, setTreeNodes] = useState<TreeNode[]>([])
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
   const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [search, setSearch] = useState('')
+  const [selectedItem, setSelectedItem] = useState<NoteItem | null>(null)
+
+  // Editor state
+  const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  const toggleExpand = (id: number, items: TreeItem[]): TreeItem[] =>
-    items.map(item => {
-      if (item.id === id) return { ...item, expanded: !item.expanded }
-      if (item.children) return { ...item, children: toggleExpand(id, item.children) }
-      return item
-    })
+  // UI state
+  const [search, setSearch] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [createBookOpen, setCreateBookOpen] = useState(false)
+  const [createItemOpen, setCreateItemOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'item' | 'book'; node?: TreeNode; book?: NoteBook } | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
-  const renderItem = (item: TreeItem, depth = 0) => (
-    <div key={item.id}>
-      <div
-        className={`flex items-center gap-2 px-3 py-2 cursor-pointer text-sm transition-colors ${
-          selectedId === item.id ? 'bg-[#FF6B35] text-white font-medium' : 'text-[#6B5344] hover:bg-[#FFF5E6]'
-        }`}
-        style={{ paddingLeft: `${depth * 16 + 12}px` }}
-        onClick={() => {
-          setSelectedId(item.id)
-          if (item.type === 'folder') setTree(prev => toggleExpand(item.id, prev))
-        }}
-      >
-        {item.type === 'folder' ? (
-          <>
-            {item.expanded ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
-            {item.expanded ? <FolderOpen className="w-4 h-4 text-[#FF6B35] shrink-0" /> : <Folder className="w-4 h-4 text-[#FF6B35] shrink-0" />}
-          </>
-        ) : (
-          <>
-            <span className="w-3 shrink-0" />
-            <FileText className="w-4 h-4 shrink-0" />
-          </>
-        )}
-        <span className="truncate">{item.title}</span>
-      </div>
-      {item.expanded && item.children?.map(child => renderItem(child, depth + 1))}
-    </div>
+  const activeBook = noteBooks.find(b => b.id === activeBookId)
+
+  // Load notebooks
+  const loadNoteBooks = useCallback(async () => {
+    try {
+      const books = await getNoteBooks()
+      setNoteBooks(books)
+      if (books.length > 0 && !activeBookId) {
+        const defaultBook = books.find(b => b.isDefault) || books[0]
+        setActiveBookId(defaultBook.id)
+      }
+    } catch {
+      console.error('Failed to load notebooks')
+    }
+  }, [activeBookId])
+
+  // Load tree
+  const loadTree = useCallback(async (bookId: number) => {
+    try {
+      setLoading(true)
+      const res = await getNoteTree(bookId)
+      setTreeNodes(res.nodes || [])
+    } catch {
+      console.error('Failed to load tree')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Initial load
+  useEffect(() => {
+    loadNoteBooks()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load tree when activeBookId changes
+  useEffect(() => {
+    if (activeBookId) {
+      loadTree(activeBookId)
+      setSelectedId(null)
+      setSelectedItem(null)
+      setTitle('')
+      setContent('')
+    }
+  }, [activeBookId, loadTree])
+
+  // Auto-save
+  const hasChanges = selectedItem && (
+    title !== (selectedItem.title || '') ||
+    content !== (selectedItem.content || '')
   )
+
+  useAutoSave(
+    { title, content },
+    {
+      onSave: async () => {
+        if (!selectedItem) return
+        setSaving(true)
+        try {
+          await updateNoteItem(selectedItem.id, { title, content })
+          setSelectedItem(prev => prev ? { ...prev, title, content } : null)
+        } finally {
+          setSaving(false)
+        }
+      },
+      enabled: !!hasChanges,
+      interval: 1500,
+    }
+  )
+
+  // Select a tree node
+  const handleSelectNode = async (node: TreeNode) => {
+    if (node.type === 'FOLDER') {
+      setExpandedIds(prev => {
+        const next = new Set(prev)
+        if (next.has(node.id)) next.delete(node.id)
+        else next.add(node.id)
+        return next
+      })
+      return
+    }
+    // Document
+    setSelectedId(node.id)
+    try {
+      const item = await getNoteItem(node.id)
+      setSelectedItem(item)
+      setTitle(item.title || '')
+      setContent(item.content || '')
+    } catch {
+      console.error('Failed to load note item')
+    }
+  }
+
+  // Delete item
+  const handleDeleteItem = (node: TreeNode) => {
+    setDeleteTarget({ type: 'item', node })
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return
+    setDeleteLoading(true)
+    try {
+      if (deleteTarget.type === 'item' && deleteTarget.node) {
+        await deleteNoteItem(deleteTarget.node.id)
+        if (selectedId === deleteTarget.node.id) {
+          setSelectedId(null)
+          setSelectedItem(null)
+          setTitle('')
+          setContent('')
+        }
+        if (activeBookId) await loadTree(activeBookId)
+      } else if (deleteTarget.type === 'book' && deleteTarget.book) {
+        await deleteNoteBook(deleteTarget.book.id)
+        const remaining = noteBooks.filter(b => b.id !== deleteTarget.book!.id)
+        setNoteBooks(remaining)
+        if (activeBookId === deleteTarget.book.id) {
+          setActiveBookId(remaining.length > 0 ? (remaining.find(b => b.isDefault) || remaining[0]).id : null)
+        }
+      }
+    } finally {
+      setDeleteLoading(false)
+      setDeleteTarget(null)
+    }
+  }
+
+  // Create item
+  const handleCreateItem = async (type: 'FOLDER' | 'DOCUMENT', itemTitle: string) => {
+    if (!activeBookId) return
+    try {
+      await createNoteItem({
+        bookId: activeBookId,
+        parentId: selectedId && selectedItem?.type === 'FOLDER' ? selectedId : null,
+        type,
+        title: itemTitle,
+      })
+      await loadTree(activeBookId)
+    } catch (err) {
+      console.error('Failed to create item:', err)
+    }
+  }
+
+  // Create notebook
+  const handleCreateBook = async (name: string) => {
+    try {
+      const id = await createNoteBook({ name })
+      await loadNoteBooks()
+      setActiveBookId(id)
+    } catch (err) {
+      console.error('Failed to create notebook:', err)
+    }
+  }
+
+  // Filter tree by search
+  const filterTree = (nodes: TreeNode[], query: string): TreeNode[] => {
+    if (!query) return nodes
+    return nodes.reduce<TreeNode[]>((acc, node) => {
+      const childMatch = node.children ? filterTree(node.children, query) : []
+      if (node.title.toLowerCase().includes(query.toLowerCase()) || childMatch.length > 0) {
+        acc.push({ ...node, children: childMatch })
+        if (childMatch.length > 0) setExpandedIds(prev => new Set(prev).add(node.id))
+      }
+      return acc
+    }, [])
+  }
+
+  const displayedNodes = search ? filterTree(treeNodes, search) : treeNodes
 
   return (
     <div className="flex gap-6 h-[calc(100vh-8rem)]">
@@ -61,44 +208,106 @@ export default function Notes() {
       <aside className="sidebar w-64 shrink-0 overflow-hidden flex flex-col">
         <div className="p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-sm">笔记本</h2>
-            <button className="p-1.5 cursor-pointer hover:text-[#FF6B35] transition-colors">
-              <Plus className="w-4 h-4" />
-            </button>
+            {/* Notebook selector */}
+            <div className="flex-1 mr-2 relative">
+              <button
+                onClick={() => setBookMenuOpen(!bookMenuOpen)}
+                className="w-full flex items-center justify-between px-2 py-1.5 text-sm font-bold bg-white border-2 border-foreground cursor-pointer hover:bg-[#FFF5E6] transition-colors"
+              >
+                <span className="truncate">{activeBook?.name || '选择笔记本'}</span>
+                <ChevronDown className="w-4 h-4 shrink-0" />
+              </button>
+              {bookMenuOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-foreground shadow-[4px_4px_0_#2C1810] z-10 max-h-48 overflow-y-auto">
+                  {noteBooks.map(book => (
+                    <div
+                      key={book.id}
+                      className={`px-3 py-2 text-sm cursor-pointer transition-colors flex items-center justify-between group ${
+                        activeBookId === book.id ? 'bg-[#FF6B35] text-white font-medium' : 'text-[#6B5344] hover:bg-[#FFF5E6]'
+                      }`}
+                      onClick={() => {
+                        setActiveBookId(book.id)
+                        setBookMenuOpen(false)
+                      }}
+                    >
+                      <BookOpen className="w-3.5 h-3.5 mr-2 shrink-0" />
+                      <span className="flex-1 truncate">{book.name}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setDeleteTarget({ type: 'book', book })
+                          setBookMenuOpen(false)
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-red-500 cursor-pointer ml-1"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setCreateBookOpen(true)}
+                className="p-1.5 cursor-pointer hover:text-[#FF6B35] transition-colors"
+                title="新建笔记本"
+              >
+                <BookOpen className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setCreateItemOpen(true)}
+                className="p-1.5 cursor-pointer hover:text-[#FF6B35] transition-colors"
+                title="新建条目"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
           </div>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6B5344]" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索笔记..." className={`pl-8 h-9 text-xs ${"bg-white border-2 border-foreground focus:border-[#FF6B35] rounded-none shadow-none"}`} />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="搜索笔记..."
+              className="pl-8 h-9 text-xs bg-white border-2 border-foreground focus:border-[#FF6B35] rounded-none shadow-none"
+            />
           </div>
         </div>
         <div className="border-t-2 border-foreground" />
         <ScrollArea className="flex-1 p-2">
-          {tree.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center h-32 text-[#6B5344] text-xs">
+              加载中...
+            </div>
+          ) : displayedNodes.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 text-[#6B5344] text-xs">
               <FileText className="w-6 h-6 mb-2 text-[#E8DDD4]" />
-              <p>暂无笔记</p>
+              <p>{activeBookId ? '暂无笔记' : '请先创建笔记本'}</p>
               <p className="text-[#E8DDD4]">点击 + 创建</p>
             </div>
           ) : (
-            tree.map(item => renderItem(item))
+            <NoteTree
+              nodes={displayedNodes}
+              selectedId={selectedId}
+              expandedIds={expandedIds}
+              onSelect={handleSelectNode}
+              onDelete={handleDeleteItem}
+            />
           )}
         </ScrollArea>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 block-card overflow-hidden flex flex-col">
-        {selectedId ? (
-          <>
-            <div className="p-4 border-b-2 border-foreground">
-              <Input className="text-lg font-bold border-0 bg-transparent focus:ring-0 px-0 h-8 shadow-none" placeholder="无标题" />
-            </div>
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="开始写作..."
-              className="flex-1 p-4 bg-transparent resize-none outline-none text-foreground leading-relaxed"
-            />
-          </>
+        {selectedItem ? (
+          <NoteEditor
+            title={title}
+            content={content}
+            onTitleChange={setTitle}
+            onContentChange={setContent}
+            saving={saving}
+          />
         ) : (
           <div className="flex-1 flex items-center justify-center text-[#6B5344]">
             <div className="text-center">
@@ -109,6 +318,30 @@ export default function Notes() {
           </div>
         )}
       </main>
+
+      {/* Dialogs */}
+      <CreateNoteBookDialog
+        open={createBookOpen}
+        onOpenChange={setCreateBookOpen}
+        onSubmit={handleCreateBook}
+      />
+      <CreateNoteItemDialog
+        open={createItemOpen}
+        onOpenChange={setCreateItemOpen}
+        onSubmit={handleCreateItem}
+      />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title={deleteTarget?.type === 'book' ? '删除笔记本' : '删除条目'}
+        description={
+          deleteTarget?.type === 'book'
+            ? `确定要删除笔记本「${deleteTarget.book?.name}」吗？其中的所有内容将被删除。`
+            : `确定要删除「${deleteTarget?.node?.title}」吗？`
+        }
+        onConfirm={handleConfirmDelete}
+        loading={deleteLoading}
+      />
     </div>
   )
 }

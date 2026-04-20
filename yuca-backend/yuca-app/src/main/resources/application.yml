@@ -93,7 +93,7 @@ jwt:
 
 # 登录策略
 login:
-  lock-duration: 1800000
+  lock-duration: 180000
 
 # MinIO配置
 minio:

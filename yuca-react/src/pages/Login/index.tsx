@@ -21,7 +21,14 @@ export default function Login() {
     setLoading(true)
 
     try {
-      const res = await login({ account, password }) as any
+      // SHA-256 哈希密码，避免明文传输
+      const encoder = new TextEncoder()
+      const data = encoder.encode(password)
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      const hashedPassword = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+
+      const res = await login({ account, password: hashedPassword }) as any
       setTokens(res.accessToken, res.refreshToken)
       setUserInfo(res.user)
       const redirect = searchParams.get('redirect') || '/'
