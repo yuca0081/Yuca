@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Plus, FileText, Search, ChevronDown, BookOpen } from 'lucide-react'
+import { Plus, FileText, Search, ChevronDown, BookOpen, RefreshCw } from 'lucide-react'
 import { NoteTree } from './NoteTree'
 import { NoteEditor } from './NoteEditor'
 import { CreateNoteBookDialog } from './CreateNoteBookDialog'
@@ -33,8 +35,12 @@ export default function Notes() {
   const [loading, setLoading] = useState(false)
   const [createBookOpen, setCreateBookOpen] = useState(false)
   const [createItemOpen, setCreateItemOpen] = useState(false)
+  const [addChildParentId, setAddChildParentId] = useState<number | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'item' | 'book'; node?: TreeNode; book?: NoteBook } | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [renameTarget, setRenameTarget] = useState<TreeNode | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [renameLoading, setRenameLoading] = useState(false)
 
   const activeBook = noteBooks.find(b => b.id === activeBookId)
 
@@ -96,6 +102,15 @@ export default function Notes() {
         try {
           await updateNoteItem(selectedItem.id, { title, content })
           setSelectedItem(prev => prev ? { ...prev, title, content } : null)
+          // Sync sidebar tree title
+          setTreeNodes(prev => {
+            const update = (nodes: TreeNode[]): TreeNode[] =>
+              nodes.map(n => n.id === selectedItem.id
+                ? { ...n, title }
+                : n.children ? { ...n, children: update(n.children) } : n
+              )
+            return update(prev)
+          })
         } finally {
           setSaving(false)
         }
@@ -164,15 +179,53 @@ export default function Notes() {
   const handleCreateItem = async (type: 'FOLDER' | 'DOCUMENT', itemTitle: string) => {
     if (!activeBookId) return
     try {
+      const parentId = addChildParentId ?? (selectedId && selectedItem?.type === 'FOLDER' ? selectedId : null)
       await createNoteItem({
         bookId: activeBookId,
-        parentId: selectedId && selectedItem?.type === 'FOLDER' ? selectedId : null,
+        parentId,
         type,
         title: itemTitle,
       })
       await loadTree(activeBookId)
+      setAddChildParentId(null)
     } catch (err) {
       console.error('Failed to create item:', err)
+      setAddChildParentId(null)
+    }
+  }
+
+  // Add child to folder via three-dot menu
+  const handleAddChild = (parentNode: TreeNode) => {
+    setAddChildParentId(parentNode.id)
+    setCreateItemOpen(true)
+  }
+
+  // Rename
+  const handleRename = (node: TreeNode) => {
+    setRenameTarget(node)
+    setRenameValue(node.title)
+  }
+
+  const handleConfirmRename = async () => {
+    if (!renameTarget || !renameValue.trim()) return
+    setRenameLoading(true)
+    try {
+      await updateNoteItem(renameTarget.id, { title: renameValue.trim() })
+      setTreeNodes(prev => {
+        const update = (nodes: TreeNode[]): TreeNode[] =>
+          nodes.map(n => n.id === renameTarget!.id
+            ? { ...n, title: renameValue.trim() }
+            : n.children ? { ...n, children: update(n.children) } : n
+          )
+        return update(prev)
+      })
+      if (selectedItem?.id === renameTarget.id) {
+        setSelectedItem(prev => prev ? { ...prev, title: renameValue.trim() } : null)
+        setTitle(renameValue.trim())
+      }
+    } finally {
+      setRenameLoading(false)
+      setRenameTarget(null)
     }
   }
 
@@ -262,6 +315,13 @@ export default function Notes() {
               >
                 <Plus className="w-4 h-4" />
               </button>
+              <button
+                onClick={() => activeBookId && loadTree(activeBookId)}
+                className="p-1.5 cursor-pointer hover:text-[#FF6B35] transition-colors"
+                title="刷新"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
             </div>
           </div>
           <div className="relative">
@@ -293,6 +353,8 @@ export default function Notes() {
               expandedIds={expandedIds}
               onSelect={handleSelectNode}
               onDelete={handleDeleteItem}
+              onAddChild={handleAddChild}
+              onRename={handleRename}
             />
           )}
         </ScrollArea>
@@ -337,11 +399,37 @@ export default function Notes() {
         description={
           deleteTarget?.type === 'book'
             ? `确定要删除笔记本「${deleteTarget.book?.name}」吗？其中的所有内容将被删除。`
-            : `确定要删除「${deleteTarget?.node?.title}」吗？`
+            : deleteTarget?.node?.type === 'FOLDER'
+              ? `确定要删除文件夹「${deleteTarget.node?.title}」吗？其中的所有子文件和子文件夹也将被删除。`
+              : `确定要删除「${deleteTarget?.node?.title}」吗？`
         }
         onConfirm={handleConfirmDelete}
         loading={deleteLoading}
       />
+
+      {/* Rename Dialog */}
+      <Dialog open={!!renameTarget} onOpenChange={(open) => !open && setRenameTarget(null)}>
+        <DialogContent className="sm:max-w-md border-2 border-foreground shadow-[4px_4px_0_#2C1810] rounded-none">
+          <DialogHeader>
+            <DialogTitle>重命名</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            className="border-2 border-foreground focus:border-[#FF6B35] rounded-none shadow-none"
+            onKeyDown={(e) => e.key === 'Enter' && handleConfirmRename()}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameTarget(null)} disabled={renameLoading} className="rounded-none">
+              取消
+            </Button>
+            <Button onClick={handleConfirmRename} disabled={renameLoading || !renameValue.trim()} className="rounded-none bg-[#FF6B35] hover:bg-[#E55A2B] text-white">
+              {renameLoading ? '保存中...' : '确定'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

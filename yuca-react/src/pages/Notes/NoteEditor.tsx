@@ -35,22 +35,25 @@ export function NoteEditor({ title, content, onTitleChange, onContentChange, sav
         {saving && <span className="text-xs text-[#6B5344] shrink-0">保存中...</span>}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-hidden relative">
         {editing ? (
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(e) => onContentChange(e.target.value)}
-            onBlur={() => setEditing(false)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') setEditing(false)
-            }}
-            placeholder="开始写作..."
-            className="w-full h-full bg-transparent resize-none outline-none text-foreground leading-relaxed font-mono text-sm"
-          />
+          <div className="absolute inset-0 flex flex-col p-6">
+            <textarea
+              ref={textareaRef}
+              value={content}
+              onChange={(e) => onContentChange(e.target.value)}
+              onBlur={() => setEditing(false)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setEditing(false)
+              }}
+              placeholder="开始写作..."
+              className="flex-1 bg-transparent resize-none outline-none text-foreground leading-relaxed font-mono text-sm w-full"
+            />
+            <p className="text-xs text-[#B09A87] py-1">点击外部区域或按 Esc 预览 Markdown 样式</p>
+          </div>
         ) : (
           <div
-            className="min-h-full cursor-text"
+            className="absolute inset-0 overflow-y-auto p-6 cursor-text"
             onClick={() => setEditing(true)}
           >
             {content ? (

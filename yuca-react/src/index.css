@@ -297,8 +297,7 @@ h1, h2, h3, h4, h5, h6 {
 .md-content h4, .md-content h5, .md-content h6 {
   font-family: 'Playfair Display SC', 'Noto Sans SC', serif;
   color: #2C1810;
-  margin-top: 0.8em;
-  margin-bottom: 0.4em;
+  margin: 0;
   font-weight: 700;
 }
 
@@ -307,7 +306,7 @@ h1, h2, h3, h4, h5, h6 {
 .md-content h3 { font-size: 1.25rem; }
 
 .md-content p {
-  margin: 0.4em 0;
+  margin: 0;
 }
 
 .md-content ul, .md-content ol {

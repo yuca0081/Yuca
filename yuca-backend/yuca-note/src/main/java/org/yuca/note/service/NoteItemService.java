@@ -187,9 +187,8 @@ public class NoteItemService extends ServiceImpl<NoteItemMapper, NoteItem> {
         // 验证节点存在且属于该用户
         NoteItem item = dataIntegrityUtils.validateNoteItem(itemId, userId);
 
-        // 如果是文件夹且有子节点，使用级联删除
-        if (item.isFolder() && item.getChildCount() != null && item.getChildCount() > 0) {
-            // 使用级联删除
+        // 如果是文件夹，使用级联删除（确保所有子孙节点都被删除）
+        if (item.isFolder()) {
             dataIntegrityUtils.cascadeDeleteNoteItem(itemId, userId);
         } else {
             // 逻辑删除单个节点
