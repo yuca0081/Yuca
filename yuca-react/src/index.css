@@ -158,8 +158,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .block-card:hover {
-  box-shadow: 4px 4px 0 var(--foreground);
-  transform: translate(2px, 2px);
+  box-shadow: 6px 6px 0 var(--foreground);
 }
 
 /* Warm Card — soft rounded style */

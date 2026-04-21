@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Input } from '@/components/ui/input'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkBreaks from 'remark-breaks'
 import rehypeHighlight from 'rehype-highlight'
 
 interface NoteEditorProps {
@@ -54,7 +55,7 @@ export function NoteEditor({ title, content, onTitleChange, onContentChange, sav
           >
             {content ? (
               <div className="md-content">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+                <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} rehypePlugins={[rehypeHighlight]}>
                   {content}
                 </ReactMarkdown>
               </div>
