@@ -395,10 +395,10 @@ const dialog = useDialog()
 
 // ========== 侧栏相关 ==========
 // 侧栏宽度状态
-const sidebarWidth = ref(20) // 默认20%
+const sidebarWidth = ref(15) // 默认15%
 const isResizing = ref(false)
 const startX = ref(0)
-const startWidth = ref(20)
+const startWidth = ref(15)
 const isCollapsed = ref(false) // 侧栏折叠状态
 const savedWidth = ref(20) // 保存折叠前的宽度
 
@@ -885,7 +885,7 @@ const stopResize = () => {
 
 // 重置宽度（双击分隔条）
 const resetWidth = () => {
-  sidebarWidth.value = 20
+  sidebarWidth.value = 15
 }
 
 // 返回主页
@@ -924,14 +924,14 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 8px;
   z-index: 1;
 }
 
 /* ========== 第2层：页面主体容器 ========== */
 .wiki-main-card {
-  width: 93%;
-  height: 85vh;
+  width: 100%;
+  height: 100%;
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);

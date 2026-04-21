@@ -336,10 +336,10 @@ const message = useMessage()
 const noteStore = useNoteStore()
 
 // ========== 侧栏相关 ==========
-const sidebarWidth = ref(20)
+const sidebarWidth = ref(15)
 const isResizing = ref(false)
 const startX = ref(0)
-const startWidth = ref(20)
+const startWidth = ref(15)
 const isCollapsed = ref(false)
 const savedWidth = ref(20)
 
@@ -692,7 +692,7 @@ const stopResize = () => {
 }
 
 const resetWidth = () => {
-  sidebarWidth.value = 20
+  sidebarWidth.value = 15
 }
 
 // 编辑器侧栏拖动
@@ -770,14 +770,14 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 8px;
   z-index: 1;
 }
 
 /* ========== 第2层：页面主体容器 ========== */
 .notes-main-card {
-  width: 93%;
-  height: 85vh;
+  width: 100%;
+  height: 100%;
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);

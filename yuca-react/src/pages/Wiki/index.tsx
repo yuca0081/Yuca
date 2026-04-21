@@ -169,13 +169,15 @@ export default function Wiki() {
             {/* Toolbar */}
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-bold text-lg">{kbList.find(k => k.id === activeKbId)?.name || '知识库'}</h2>
-              <button
-                onClick={() => setUploadOpen(true)}
-                className="btn-primary text-sm py-2 flex items-center gap-2"
-              >
-                <Upload className="w-4 h-4" />
-                上传文档
-              </button>
+              {!selectedDoc && (
+                <button
+                  onClick={() => setUploadOpen(true)}
+                  className="btn-primary text-sm py-2 flex items-center gap-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  上传文档
+                </button>
+              )}
             </div>
 
             {selectedDoc ? (

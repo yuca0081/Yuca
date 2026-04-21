@@ -3,6 +3,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "highlight.js/styles/github.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -280,4 +281,109 @@ h1, h2, h3, h4, h5, h6 {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #6B5344;
+}
+
+/* Markdown content rendering */
+.md-content {
+  color: #2C1810;
+  line-height: 1.7;
+  font-size: 0.9375rem;
+}
+
+.md-content > *:first-child {
+  margin-top: 0;
+}
+
+.md-content h1, .md-content h2, .md-content h3,
+.md-content h4, .md-content h5, .md-content h6 {
+  font-family: 'Playfair Display SC', 'Noto Sans SC', serif;
+  color: #2C1810;
+  margin-top: 0.8em;
+  margin-bottom: 0.4em;
+  font-weight: 700;
+}
+
+.md-content h1 { font-size: 1.75rem; }
+.md-content h2 { font-size: 1.5rem; border-bottom: 2px solid #E8DDD4; padding-bottom: 0.3em; }
+.md-content h3 { font-size: 1.25rem; }
+
+.md-content p {
+  margin: 0.4em 0;
+}
+
+.md-content ul, .md-content ol {
+  padding-left: 1.5em;
+  margin: 0.4em 0;
+}
+
+.md-content li {
+  margin: 0.2em 0;
+}
+
+.md-content blockquote {
+  border-left: 3px solid #FF6B35;
+  padding: 0.4em 1em;
+  margin: 0.5em 0;
+  color: #6B5344;
+  background: #FFF5E6;
+}
+
+.md-content code {
+  background: #FFF5E6;
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  font-size: 0.875em;
+}
+
+.md-content pre {
+  background: #FFF5E6;
+  border: 2px solid #E8DDD4;
+  box-shadow: 3px 3px 0 #E8DDD4;
+  padding: 1em;
+  overflow-x: auto;
+  margin: 0.6em 0;
+  border-radius: 0;
+}
+
+.md-content pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.md-content a {
+  color: #FF6B35;
+  text-decoration: underline;
+}
+
+.md-content img {
+  max-width: 100%;
+  border: 2px solid #E8DDD4;
+  box-shadow: 3px 3px 0 #E8DDD4;
+}
+
+.md-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.6em 0;
+}
+
+.md-content th, .md-content td {
+  border: 1px solid #E8DDD4;
+  padding: 0.4em 0.75em;
+  text-align: left;
+}
+
+.md-content th {
+  background: #FFF5E6;
+  font-weight: 600;
+}
+
+.md-content hr {
+  border: none;
+  border-top: 2px solid #E8DDD4;
+  margin: 1em 0;
+}
+
+.md-content input[type="checkbox"] {
+  margin-right: 0.5em;
 }
