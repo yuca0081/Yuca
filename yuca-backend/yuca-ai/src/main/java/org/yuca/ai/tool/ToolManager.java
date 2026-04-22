@@ -1,4 +1,4 @@
-package org.yuca.ai.agent;
+package org.yuca.ai.tool;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;

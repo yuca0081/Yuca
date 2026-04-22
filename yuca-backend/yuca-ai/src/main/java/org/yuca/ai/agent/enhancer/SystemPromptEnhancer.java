@@ -5,7 +5,6 @@ import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import org.yuca.ai.agent.ChatContext;
-import org.yuca.ai.agent.ChatEnhancer;
 
 import java.util.ArrayList;
 import java.util.List;

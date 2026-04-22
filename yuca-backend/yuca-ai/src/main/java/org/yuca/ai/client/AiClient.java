@@ -1,4 +1,4 @@
-package org.yuca.ai.service;
+package org.yuca.ai.client;
 
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
@@ -15,7 +15,7 @@ import org.yuca.ai.agent.ChatContext;
 import org.yuca.ai.agent.enhancer.MemoryEnhancer;
 import org.yuca.ai.agent.enhancer.SystemPromptEnhancer;
 import org.yuca.ai.config.AiProperties;
-import org.yuca.ai.memory.ChatMemoryStore;
+import org.yuca.ai.history.ChatHistoryStore;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
@@ -23,45 +23,57 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * 统一聊天服务实现
+ * AI客户端
+ * 供其他模块使用的统一AI能力入口
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ChatServiceImpl implements ChatService {
+public class AiClient {
 
     private final ChatModel chatModel;
     private final StreamingChatModel streamingChatModel;
-    private final ChatMemoryStore memoryStore;
+    private final ChatHistoryStore historyStore;
     private final AiProperties aiProperties;
 
-    private Agent simpleAgent;
-    private Agent memoryAgent;
+    private Agent historyAgent;
+    private Agent defaultAgent;
 
     @PostConstruct
     void init() {
-        simpleAgent = Agent.builder()
+        defaultAgent = Agent.builder()
                 .chatModel(chatModel)
                 .build();
 
-        memoryAgent = Agent.builder()
+        historyAgent = Agent.builder()
                 .chatModel(chatModel)
                 .enhancer(new SystemPromptEnhancer("你是一个友好的AI助手，能够记住之前的对话内容。请用简洁、准确的方式回答用户的问题。"))
-                .enhancer(new MemoryEnhancer(memoryStore, aiProperties.getMemory().getMaxMessages()))
+                .enhancer(new MemoryEnhancer(historyStore, aiProperties.getMemory().getMaxMessages()))
                 .build();
     }
 
-    @Override
+    /**
+     * 同步对话（无历史，适用于一次性调用如生成标题等）
+     *
+     * @param message 用户消息
+     * @return AI回复文本
+     */
     public String chat(String message) {
         ChatRequest request = ChatRequest.builder()
                 .messages(List.of(UserMessage.from(message)))
                 .build();
-        ChatResponse response = simpleAgent.execute(request, new ChatContext());
+        ChatResponse response = defaultAgent.execute(request, new ChatContext());
         return response.aiMessage().text();
     }
 
-    @Override
-    public ChatResponse chatWithMemory(String message, String sessionId) {
+    /**
+     * 同步对话（带对话历史）
+     *
+     * @param message   用户消息
+     * @param sessionId 会话ID，用于加载和保存对话历史
+     * @return AI回复文本
+     */
+    public String chat(String message, String sessionId) {
         ChatContext context = new ChatContext();
         context.setSessionId(sessionId);
 
@@ -69,27 +81,21 @@ public class ChatServiceImpl implements ChatService {
                 .messages(List.of(UserMessage.from(message)))
                 .build();
 
-        return memoryAgent.execute(request, context);
+        ChatResponse response = historyAgent.execute(request, context);
+        return response.aiMessage().text();
     }
 
-    @Override
-    public Flux<String> streamChat(String message) {
-        return doStreamChat(
-                ChatRequest.builder().messages(List.of(UserMessage.from(message))).build(),
-                null, null
-        );
-    }
-
-    @Override
+    /**
+     * 流式对话
+     *
+     * @param request          聊天请求
+     * @param tokenConsumer    token回调（每个token触发一次）
+     * @param responseConsumer 完成回调（流式结束时触发，含token统计）
+     * @return Flux<String> token流
+     */
     public Flux<String> streamChat(ChatRequest request,
                                    Consumer<String> tokenConsumer,
                                    Consumer<ChatResponse> responseConsumer) {
-        return doStreamChat(request, tokenConsumer, responseConsumer);
-    }
-
-    private Flux<String> doStreamChat(ChatRequest request,
-                                      Consumer<String> tokenConsumer,
-                                      Consumer<ChatResponse> responseConsumer) {
         Sinks.Many<String> sink = Sinks.many().multicast().onBackpressureBuffer();
 
         streamingChatModel.chat(request, new StreamingChatResponseHandler() {
@@ -115,5 +121,16 @@ public class ChatServiceImpl implements ChatService {
         });
 
         return sink.asFlux();
+    }
+
+    /**
+     * Agent对话（支持增强器链 + 工具调用）
+     *
+     * @param request 聊天请求
+     * @param context 上下文（sessionId、userId等）
+     * @return ChatResponse
+     */
+    public ChatResponse agent(ChatRequest request, ChatContext context) {
+        return defaultAgent.execute(request, context);
     }
 }

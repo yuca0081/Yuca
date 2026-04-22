@@ -1,6 +1,8 @@
 package org.yuca.ai.agent;
 
 import dev.langchain4j.model.chat.ChatModel;
+import org.yuca.ai.agent.enhancer.ChatEnhancer;
+import org.yuca.ai.tool.ToolManager;
 
 import java.util.ArrayList;
 import java.util.Comparator;

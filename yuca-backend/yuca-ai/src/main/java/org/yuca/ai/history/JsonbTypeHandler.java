@@ -1,4 +1,4 @@
-package org.yuca.ai.memory;
+package org.yuca.ai.history;
 
 import org.apache.ibatis.type.BaseTypeHandler;
 import org.apache.ibatis.type.JdbcType;

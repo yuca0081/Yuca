@@ -1,4 +1,4 @@
-package org.yuca.ai.memory;
+package org.yuca.ai.history;
 
 import com.google.gson.Gson;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
@@ -6,33 +6,31 @@ import dev.langchain4j.data.message.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.yuca.ai.entity.Conversation;
-import org.yuca.ai.mapper.ConversationMapper;
 
 import com.google.gson.reflect.TypeToken;
+import org.yuca.ai.mapper.ChatHistoryMapper;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
 /**
- * PostgreSQL 聊天记忆存储
- * 实现 ChatMemoryStore 接口
+ * PostgreSQL 对话历史存储
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class PostgresChatMemoryStore implements ChatMemoryStore {
+public class PostgresChatHistoryStore implements ChatHistoryStore {
 
-    private final ConversationMapper conversationMapper;
+    private final ChatHistoryMapper chatHistoryMapper;
     private final Gson gson;
 
     @Override
     public List<ChatMessage> getMessages(String sessionId) {
         try {
-            List<Conversation> conversations = conversationMapper.selectBySessionId(sessionId);
-            log.debug("从 PostgreSQL 加载 {} 条消息, sessionId={}", conversations.size(), sessionId);
-            return conversations.stream()
+            List<ChatHistory> histories = chatHistoryMapper.selectBySessionId(sessionId);
+            log.debug("从 PostgreSQL 加载 {} 条消息, sessionId={}", histories.size(), sessionId);
+            return histories.stream()
                     .map(this::toChatMessage)
                     .toList();
         } catch (Exception e) {
@@ -56,7 +54,7 @@ public class PostgresChatMemoryStore implements ChatMemoryStore {
     @Override
     public void deleteMessages(String sessionId) {
         try {
-            conversationMapper.deleteBySessionId(sessionId);
+            chatHistoryMapper.deleteBySessionId(sessionId);
             log.info("删除会话消息, sessionId={}", sessionId);
         } catch (Exception e) {
             log.error("删除消息失败, sessionId={}", sessionId, e);
@@ -64,32 +62,32 @@ public class PostgresChatMemoryStore implements ChatMemoryStore {
     }
 
     private void saveMessage(String sessionId, ChatMessage message) {
-        Conversation conversation = new Conversation();
-        conversation.setSessionId(sessionId);
-        conversation.setCreatedAt(LocalDateTime.now());
+        ChatHistory history = new ChatHistory();
+        history.setSessionId(sessionId);
+        history.setCreatedAt(LocalDateTime.now());
 
         switch (message) {
             case UserMessage userMsg -> {
-                conversation.setMessageType("USER");
-                conversation.setContent(userMsg.singleText());
+                history.setMessageType("USER");
+                history.setContent(userMsg.singleText());
             }
             case SystemMessage sysMsg -> {
-                conversation.setMessageType("SYSTEM");
-                conversation.setContent(sysMsg.text());
+                history.setMessageType("SYSTEM");
+                history.setContent(sysMsg.text());
             }
             case AiMessage aiMsg when aiMsg.hasToolExecutionRequests() -> {
-                conversation.setMessageType("TOOL");
-                conversation.setContent(aiMsg.text() != null ? aiMsg.text() : "");
-                conversation.setToolCalls(gson.toJson(aiMsg.toolExecutionRequests()));
+                history.setMessageType("TOOL");
+                history.setContent(aiMsg.text() != null ? aiMsg.text() : "");
+                history.setToolCalls(gson.toJson(aiMsg.toolExecutionRequests()));
             }
             case AiMessage aiMsg -> {
-                conversation.setMessageType("AI");
-                conversation.setContent(aiMsg.text());
+                history.setMessageType("AI");
+                history.setContent(aiMsg.text());
             }
             case ToolExecutionResultMessage resultMsg -> {
-                conversation.setMessageType("TOOL_RESULT");
-                conversation.setContent(resultMsg.text());
-                conversation.setToolCalls(gson.toJson(Map.of(
+                history.setMessageType("TOOL_RESULT");
+                history.setContent(resultMsg.text());
+                history.setToolCalls(gson.toJson(Map.of(
                         "id", resultMsg.id() != null ? resultMsg.id() : "",
                         "toolName", resultMsg.toolName() != null ? resultMsg.toolName() : ""
                 )));
@@ -100,31 +98,31 @@ public class PostgresChatMemoryStore implements ChatMemoryStore {
             }
         }
 
-        conversationMapper.insert(conversation);
+        chatHistoryMapper.insert(history);
     }
 
-    private ChatMessage toChatMessage(Conversation conversation) {
-        return switch (conversation.getMessageType()) {
-            case "USER" -> UserMessage.from(conversation.getContent());
-            case "SYSTEM" -> SystemMessage.from(conversation.getContent());
-            case "AI" -> AiMessage.from(conversation.getContent());
+    private ChatMessage toChatMessage(ChatHistory history) {
+        return switch (history.getMessageType()) {
+            case "USER" -> UserMessage.from(history.getContent());
+            case "SYSTEM" -> SystemMessage.from(history.getContent());
+            case "AI" -> AiMessage.from(history.getContent());
             case "TOOL" -> {
                 List<ToolExecutionRequest> requests = gson.fromJson(
-                        conversation.getToolCalls(), new TypeToken<List<ToolExecutionRequest>>() {}.getType());
-                String text = conversation.getContent();
+                        history.getToolCalls(), new TypeToken<List<ToolExecutionRequest>>() {}.getType());
+                String text = history.getContent();
                 yield (text != null && !text.isEmpty())
                         ? AiMessage.from(text, requests) : AiMessage.from(requests);
             }
             case "TOOL_RESULT" -> {
                 Map<String, String> toolInfo = gson.fromJson(
-                        conversation.getToolCalls(), new TypeToken<Map<String, String>>() {}.getType());
+                        history.getToolCalls(), new TypeToken<Map<String, String>>() {}.getType());
                 ToolExecutionRequest request = ToolExecutionRequest.builder()
                         .id(toolInfo.getOrDefault("id", ""))
                         .name(toolInfo.getOrDefault("toolName", ""))
                         .build();
-                yield ToolExecutionResultMessage.from(request, conversation.getContent());
+                yield ToolExecutionResultMessage.from(request, history.getContent());
             }
-            default -> throw new IllegalArgumentException("未知消息类型: " + conversation.getMessageType());
+            default -> throw new IllegalArgumentException("未知消息类型: " + history.getMessageType());
         };
     }
 }

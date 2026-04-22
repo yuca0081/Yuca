@@ -7,6 +7,8 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.yuca.ai.agent.enhancer.ChatEnhancer;
+import org.yuca.ai.tool.ToolManager;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -7,14 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 @SpringBootApplication(scanBasePackages = "org.yuca")
 @ConfigurationPropertiesScan(basePackages = "org.yuca")
-@MapperScan({
-    "org.yuca.user.mapper",
-    "org.yuca.infrastructure.storage.mapper",
-    "org.yuca.knowledge.mapper",
-    "org.yuca.note.mapper",
-    "org.yuca.assistant.mapper",
-    "org.yuca.ai.mapper"
-})
+@MapperScan(basePackages = "org.yuca", annotationClass = org.apache.ibatis.annotations.Mapper.class)
 public class YucaApplication {
 
     public static void main(String[] args) {

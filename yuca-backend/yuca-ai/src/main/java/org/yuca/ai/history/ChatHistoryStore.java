@@ -1,13 +1,13 @@
-package org.yuca.ai.memory;
+package org.yuca.ai.history;
 
 import dev.langchain4j.data.message.ChatMessage;
 
 import java.util.List;
 
 /**
- * 聊天记忆存储接口
+ * 对话历史存储接口
  */
-public interface ChatMemoryStore {
+public interface ChatHistoryStore {
 
     /**
      * 获取指定会话的所有消息
