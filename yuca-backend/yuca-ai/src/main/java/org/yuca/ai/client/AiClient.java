@@ -6,16 +6,19 @@ import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
+import dev.langchain4j.model.output.TokenUsage;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.yuca.ai.agent.Agent;
 import org.yuca.ai.agent.ChatContext;
-import org.yuca.ai.agent.enhancer.MemoryEnhancer;
+import org.yuca.ai.agent.enhancer.HistoryEnhancer;
 import org.yuca.ai.agent.enhancer.SystemPromptEnhancer;
 import org.yuca.ai.config.AiProperties;
 import org.yuca.ai.history.ChatHistoryStore;
+import org.yuca.ai.skill.SkillRegistry;
+import org.yuca.ai.tool.ToolManager;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
@@ -35,6 +38,8 @@ public class AiClient {
     private final StreamingChatModel streamingChatModel;
     private final ChatHistoryStore historyStore;
     private final AiProperties aiProperties;
+    private final ToolManager toolManager;
+    private final SkillRegistry skillRegistry;
 
     private Agent historyAgent;
     private Agent defaultAgent;
@@ -45,11 +50,33 @@ public class AiClient {
                 .chatModel(chatModel)
                 .build();
 
+        String systemPrompt = buildSystemPrompt();
         historyAgent = Agent.builder()
                 .chatModel(chatModel)
-                .enhancer(new SystemPromptEnhancer("你是一个友好的AI助手，能够记住之前的对话内容。请用简洁、准确的方式回答用户的问题。"))
-                .enhancer(new MemoryEnhancer(historyStore, aiProperties.getMemory().getMaxMessages()))
+                .enhancer(new SystemPromptEnhancer(systemPrompt))
+                .enhancer(new HistoryEnhancer(historyStore, aiProperties.getMemory().getMaxMessages()))
+                .toolManager(toolManager)
                 .build();
+    }
+
+    /**
+     * 构建 system prompt，包含 skill 元数据清单
+     */
+    private String buildSystemPrompt() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("你是一个友好的AI助手，能够记住之前的对话内容。请用简洁、准确的方式回答用户的问题。\n");
+
+        var skills = skillRegistry.getAllSkills();
+        if (!skills.isEmpty()) {
+            sb.append("\n## 可用技能\n");
+            sb.append("当用户请求匹配以下技能时，请调用 executeSkill 工具执行对应技能：\n\n");
+            for (var skill : skills) {
+                sb.append("- **").append(skill.getName()).append("**: ")
+                        .append(skill.getDescription()).append("\n");
+            }
+        }
+
+        return sb.toString();
     }
 
     /**

@@ -9,7 +9,7 @@
         <result column="doc_id" property="docId"/>
         <result column="kb_id" property="kbId"/>
         <result column="content" property="content"/>
-        <result column="embedding" property="embedding" typeHandler="org.yuca.knowledge.handler.PGVectorTypeHandler"/>
+        <result column="embedding" property="embedding" typeHandler="org.yuca.infrastructure.handle.PGVectorTypeHandler"/>
         <result column="chunk_index" property="chunkIndex"/>
         <result column="is_active" property="isActive"/>
         <result column="created_at" property="createdAt"/>

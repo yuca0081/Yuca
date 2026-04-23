@@ -40,12 +40,12 @@ public class PostgresChatHistoryStore implements ChatHistoryStore {
     }
 
     @Override
-    public void appendMessages(String sessionId, List<ChatMessage> messages) {
-        for (ChatMessage message : messages) {
+    public void appendMessages(String sessionId, List<ChatHistory> messages) {
+        for (ChatHistory history : messages) {
             try {
-                saveMessage(sessionId, message);
+                chatHistoryMapper.insert(history);
             } catch (Exception e) {
-                log.error("保存消息失败, sessionId={}, type={}", sessionId, message.type(), e);
+                log.error("保存消息失败, sessionId={}, type={}", sessionId, history.getMessageType(), e);
             }
         }
         log.debug("追加 {} 条消息, sessionId={}", messages.size(), sessionId);
@@ -61,7 +61,11 @@ public class PostgresChatHistoryStore implements ChatHistoryStore {
         }
     }
 
-    private void saveMessage(String sessionId, ChatMessage message) {
+    /**
+     * 将 ChatMessage 转换为 ChatHistory 实体
+     * 供 MemoryEnhancer 调用
+     */
+    public static ChatHistory toChatHistory(String sessionId, ChatMessage message) {
         ChatHistory history = new ChatHistory();
         history.setSessionId(sessionId);
         history.setCreatedAt(LocalDateTime.now());
@@ -78,7 +82,6 @@ public class PostgresChatHistoryStore implements ChatHistoryStore {
             case AiMessage aiMsg when aiMsg.hasToolExecutionRequests() -> {
                 history.setMessageType("TOOL");
                 history.setContent(aiMsg.text() != null ? aiMsg.text() : "");
-                history.setToolCalls(gson.toJson(aiMsg.toolExecutionRequests()));
             }
             case AiMessage aiMsg -> {
                 history.setMessageType("AI");
@@ -87,18 +90,30 @@ public class PostgresChatHistoryStore implements ChatHistoryStore {
             case ToolExecutionResultMessage resultMsg -> {
                 history.setMessageType("TOOL_RESULT");
                 history.setContent(resultMsg.text());
-                history.setToolCalls(gson.toJson(Map.of(
-                        "id", resultMsg.id() != null ? resultMsg.id() : "",
-                        "toolName", resultMsg.toolName() != null ? resultMsg.toolName() : ""
-                )));
             }
-            default -> {
-                log.warn("未知消息类型: {}", message.type());
-                return;
-            }
+            default -> throw new IllegalArgumentException("未知消息类型: " + message.type());
         }
 
-        chatHistoryMapper.insert(history);
+        return history;
+    }
+
+    /**
+     * 将 ChatMessage 转换为 ChatHistory，并附带 toolCalls 和 tokenUsage
+     */
+    public static ChatHistory toChatHistory(String sessionId, ChatMessage message, Gson gson) {
+        ChatHistory history = toChatHistory(sessionId, message);
+
+        // 工具调用信息
+        if (message instanceof AiMessage aiMsg && aiMsg.hasToolExecutionRequests()) {
+            history.setToolCalls(gson.toJson(aiMsg.toolExecutionRequests()));
+        } else if (message instanceof ToolExecutionResultMessage resultMsg) {
+            history.setToolCalls(gson.toJson(Map.of(
+                    "id", resultMsg.id() != null ? resultMsg.id() : "",
+                    "toolName", resultMsg.toolName() != null ? resultMsg.toolName() : ""
+            )));
+        }
+
+        return history;
     }
 
     private ChatMessage toChatMessage(ChatHistory history) {

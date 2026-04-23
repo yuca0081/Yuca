@@ -17,7 +17,7 @@ public interface ChatHistoryStore {
     /**
      * 追加消息到指定会话
      */
-    void appendMessages(String sessionId, List<ChatMessage> messages);
+    void appendMessages(String sessionId, List<ChatHistory> messages);
 
     /**
      * 删除指定会话的所有消息

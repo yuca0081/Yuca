@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
+import org.yuca.infrastructure.handle.JsonbTypeHandler;
 
 import java.time.LocalDateTime;
 
@@ -32,6 +33,10 @@ public class ChatHistory {
     /** 工具调用信息，JSON格式 */
     @TableField(typeHandler = JsonbTypeHandler.class)
     private String toolCalls;
+
+    /** Token 使用统计，JSON格式 */
+    @TableField(typeHandler = JsonbTypeHandler.class)
+    private String tokenUsage;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;

@@ -2,7 +2,7 @@ package org.yuca.knowledge.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
-import org.yuca.knowledge.handler.PGVectorTypeHandler;
+import org.yuca.infrastructure.handle.PGVectorTypeHandler;
 
 import java.time.LocalDateTime;
 

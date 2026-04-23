@@ -1,48 +1,44 @@
 package org.yuca.ai.agent.enhancer;
 
+import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import org.yuca.ai.agent.ChatContext;
-import org.yuca.ai.skill.SkillDefinition;
+import org.yuca.ai.skill.SkillExecutor;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * 技能增强器
- * 将 Skill 模板展开为 UserMessage
+ * 将 Skill 模板展开后追加到当前对话（Inline 模式）
+ * 保留原始用户消息，Skill prompt 作为额外 UserMessage 注入
  */
 public class SkillEnhancer implements ChatEnhancer {
 
-    private final SkillDefinition skill;
+    private static final String SKILL_PROMPT_KEY = "_skillPrompt";
+
+    private final SkillExecutor executor;
+    private final String skillName;
     private final String arguments;
 
-    public SkillEnhancer(SkillDefinition skill, String arguments) {
-        this.skill = skill;
+    public SkillEnhancer(SkillExecutor executor, String skillName, String arguments) {
+        this.executor = executor;
+        this.skillName = skillName;
         this.arguments = arguments;
     }
 
     @Override
     public ChatRequest before(ChatRequest request, ChatContext context) {
-        String prompt = skill.getPromptTemplate();
+        String resolved = executor.resolve(skillName, arguments);
+        context.attribute(SKILL_PROMPT_KEY, resolved);
 
-        // 替换 $ARGUMENTS
-        if (arguments != null && !arguments.isBlank()) {
-            prompt = prompt.replace("$ARGUMENTS", arguments);
+        // 追加 skill prompt，保留原始消息
+        List<ChatMessage> messages = new ArrayList<>(request.messages());
+        messages.add(UserMessage.from(resolved));
 
-            // 替换命名参数 $paramName
-            if (skill.getArguments() != null) {
-                String[] args = arguments.split("\\s+");
-                List<String> paramNames = skill.getArguments();
-                for (int i = 0; i < Math.min(args.length, paramNames.size()); i++) {
-                    prompt = prompt.replace("$" + paramNames.get(i), args[i]);
-                }
-            }
-        }
-
-        return ChatRequest.builder()
-                .messages(List.of(UserMessage.from(prompt)))
-                .build();
+        return ChatRequest.builder().messages(messages).build();
     }
 
     @Override

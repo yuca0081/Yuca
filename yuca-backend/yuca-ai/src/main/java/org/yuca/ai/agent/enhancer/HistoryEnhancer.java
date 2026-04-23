@@ -1,12 +1,16 @@
 package org.yuca.ai.agent.enhancer;
 
+import com.google.gson.Gson;
+import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.yuca.ai.agent.ChatContext;
+import org.yuca.ai.history.ChatHistory;
 import org.yuca.ai.history.ChatHistoryStore;
+import org.yuca.ai.history.PostgresChatHistoryStore;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,16 +21,17 @@ import java.util.List;
  * after: 保存本次 user + AI 消息到 store
  */
 @Slf4j
-public class MemoryEnhancer implements ChatEnhancer {
+public class HistoryEnhancer implements ChatEnhancer {
 
     private final ChatHistoryStore historyStore;
     private final int maxMessages;
+    private final Gson gson = new Gson();
 
     private static final String USER_MESSAGES_KEY = "_userMessages";
     private static final String HISTORY_COUNT_KEY = "_historyCount";
     private static final String AGENT_CONVERSATION_KEY = "_agentConversation";
 
-    public MemoryEnhancer(ChatHistoryStore historyStore, int maxMessages) {
+    public HistoryEnhancer(ChatHistoryStore historyStore, int maxMessages) {
         this.historyStore = historyStore;
         this.maxMessages = maxMessages;
     }
@@ -49,7 +54,7 @@ public class MemoryEnhancer implements ChatEnhancer {
         List<ChatMessage> messages = new ArrayList<>(trimmed);
         messages.addAll(request.messages());
 
-        log.debug("MemoryEnhancer.before: sessionId={}, history={}, total={}",
+        log.debug("HistoryEnhancer.before: sessionId={}, history={}, total={}",
                 sessionId, history.size(), messages.size());
 
         return ChatRequest.builder().messages(messages).build();
@@ -88,8 +93,21 @@ public class MemoryEnhancer implements ChatEnhancer {
         }
 
         if (!toSave.isEmpty()) {
-            historyStore.appendMessages(sessionId, toSave);
-            log.debug("MemoryEnhancer.after: sessionId={}, saved={}", sessionId, toSave.size());
+            // 转换为 ChatHistory 实体
+            List<ChatHistory> histories = new ArrayList<>();
+            for (ChatMessage msg : toSave) {
+                ChatHistory history = PostgresChatHistoryStore.toChatHistory(sessionId, msg, gson);
+
+                // AI 消息附带 tokenUsage
+                if (msg instanceof AiMessage && response != null && response.tokenUsage() != null) {
+                    history.setTokenUsage(gson.toJson(response.tokenUsage()));
+                }
+
+                histories.add(history);
+            }
+
+            historyStore.appendMessages(sessionId, histories);
+            log.debug("HistoryEnhancer.after: sessionId={}, saved={}", sessionId, histories.size());
         }
     }
 }
