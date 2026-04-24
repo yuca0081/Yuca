@@ -1,8 +1,8 @@
 package org.yuca.ai.agent;
 
+import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.model.chat.ChatModel;
 import org.yuca.ai.agent.enhancer.ChatEnhancer;
-import org.yuca.ai.tool.ToolManager;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -14,12 +14,19 @@ import java.util.List;
 public class AgentBuilder {
 
     private ChatModel chatModel;
+    private ChatContext context;
     private final List<ChatEnhancer> enhancers = new ArrayList<>();
-    private ToolManager toolManager;
+    private final List<ToolSpecification> toolSpecifications = new ArrayList<>();
+    private final List<Object> toolObjects = new ArrayList<>();
     private int maxToolRounds = 5;
 
     public AgentBuilder chatModel(ChatModel chatModel) {
         this.chatModel = chatModel;
+        return this;
+    }
+
+    public AgentBuilder context(ChatContext context) {
+        this.context = context;
         return this;
     }
 
@@ -33,8 +40,23 @@ public class AgentBuilder {
         return this;
     }
 
-    public AgentBuilder toolManager(ToolManager toolManager) {
-        this.toolManager = toolManager;
+    public AgentBuilder toolSpecification(ToolSpecification spec) {
+        this.toolSpecifications.add(spec);
+        return this;
+    }
+
+    public AgentBuilder toolSpecifications(List<ToolSpecification> specs) {
+        this.toolSpecifications.addAll(specs);
+        return this;
+    }
+
+    public AgentBuilder toolObject(Object toolObject) {
+        this.toolObjects.add(toolObject);
+        return this;
+    }
+
+    public AgentBuilder toolObjects(List<Object> toolObjects) {
+        this.toolObjects.addAll(toolObjects);
         return this;
     }
 
@@ -44,8 +66,13 @@ public class AgentBuilder {
     }
 
     public Agent build() {
-        return new Agent(chatModel, enhancers.stream()
-                .sorted(Comparator.comparingInt(ChatEnhancer::order))
-                .toList(), toolManager, maxToolRounds);
+        if (context == null) {
+            context = new ChatContext();
+        }
+        return new Agent(chatModel, context,
+                enhancers.stream()
+                        .sorted(Comparator.comparingInt(ChatEnhancer::order))
+                        .toList(),
+                toolSpecifications, toolObjects, maxToolRounds);
     }
 }

@@ -71,7 +71,7 @@ public class HistoryEnhancer implements ChatEnhancer {
         List<ChatMessage> toSave;
 
         List<ChatMessage> agentConversation = context.attribute(AGENT_CONVERSATION_KEY);
-        Integer historyCount = context.attribute(HISTORY_COUNT_KEY);
+        Integer historyCount = context.attribute(   HISTORY_COUNT_KEY);
 
         if (agentConversation != null && historyCount != null) {
             toSave = agentConversation.subList(historyCount, agentConversation.size())

@@ -1,24 +1,15 @@
 package org.yuca.ai.client;
 
 import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
-import dev.langchain4j.model.output.TokenUsage;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.yuca.ai.agent.Agent;
+import org.yuca.ai.agent.AgentFactory;
 import org.yuca.ai.agent.ChatContext;
-import org.yuca.ai.agent.enhancer.HistoryEnhancer;
-import org.yuca.ai.agent.enhancer.SystemPromptEnhancer;
-import org.yuca.ai.config.AiProperties;
-import org.yuca.ai.history.ChatHistoryStore;
-import org.yuca.ai.skill.SkillRegistry;
-import org.yuca.ai.tool.ToolManager;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
@@ -34,50 +25,8 @@ import java.util.function.Consumer;
 @RequiredArgsConstructor
 public class AiClient {
 
-    private final ChatModel chatModel;
     private final StreamingChatModel streamingChatModel;
-    private final ChatHistoryStore historyStore;
-    private final AiProperties aiProperties;
-    private final ToolManager toolManager;
-    private final SkillRegistry skillRegistry;
-
-    private Agent historyAgent;
-    private Agent defaultAgent;
-
-    @PostConstruct
-    void init() {
-        defaultAgent = Agent.builder()
-                .chatModel(chatModel)
-                .build();
-
-        String systemPrompt = buildSystemPrompt();
-        historyAgent = Agent.builder()
-                .chatModel(chatModel)
-                .enhancer(new SystemPromptEnhancer(systemPrompt))
-                .enhancer(new HistoryEnhancer(historyStore, aiProperties.getMemory().getMaxMessages()))
-                .toolManager(toolManager)
-                .build();
-    }
-
-    /**
-     * 构建 system prompt，包含 skill 元数据清单
-     */
-    private String buildSystemPrompt() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("你是一个友好的AI助手，能够记住之前的对话内容。请用简洁、准确的方式回答用户的问题。\n");
-
-        var skills = skillRegistry.getAllSkills();
-        if (!skills.isEmpty()) {
-            sb.append("\n## 可用技能\n");
-            sb.append("当用户请求匹配以下技能时，请调用 executeSkill 工具执行对应技能：\n\n");
-            for (var skill : skills) {
-                sb.append("- **").append(skill.getName()).append("**: ")
-                        .append(skill.getDescription()).append("\n");
-            }
-        }
-
-        return sb.toString();
-    }
+    private final AgentFactory agentFactory;
 
     /**
      * 同步对话（无历史，适用于一次性调用如生成标题等）
@@ -89,7 +38,7 @@ public class AiClient {
         ChatRequest request = ChatRequest.builder()
                 .messages(List.of(UserMessage.from(message)))
                 .build();
-        ChatResponse response = defaultAgent.execute(request, new ChatContext());
+        ChatResponse response = agentFactory.simpleAgent().execute(request);
         return response.aiMessage().text();
     }
 
@@ -108,7 +57,7 @@ public class AiClient {
                 .messages(List.of(UserMessage.from(message)))
                 .build();
 
-        ChatResponse response = historyAgent.execute(request, context);
+        ChatResponse response = agentFactory.defaultAgent(context).execute(request);
         return response.aiMessage().text();
     }
 
@@ -148,16 +97,5 @@ public class AiClient {
         });
 
         return sink.asFlux();
-    }
-
-    /**
-     * Agent对话（支持增强器链 + 工具调用）
-     *
-     * @param request 聊天请求
-     * @param context 上下文（sessionId、userId等）
-     * @return ChatResponse
-     */
-    public ChatResponse agent(ChatRequest request, ChatContext context) {
-        return defaultAgent.execute(request, context);
     }
 }
