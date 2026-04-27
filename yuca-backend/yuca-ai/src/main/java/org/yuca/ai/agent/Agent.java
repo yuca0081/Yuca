@@ -1,20 +1,20 @@
 package org.yuca.ai.agent;
 
-import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
-import dev.langchain4j.agent.tool.ToolSpecifications;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.service.tool.ToolExecutor;
 import lombok.extern.slf4j.Slf4j;
 import org.yuca.ai.agent.enhancer.ChatEnhancer;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Agent 执行引擎
@@ -27,16 +27,16 @@ public class Agent {
     private final ChatContext context;
     private final List<ChatEnhancer> enhancers;
     private final List<ToolSpecification> toolSpecifications;
-    private final List<Object> toolObjects;
+    private final Map<String, ToolExecutor> toolExecutors;
     private final int maxToolRounds;
 
     Agent(ChatModel chatModel, ChatContext context, List<ChatEnhancer> enhancers,
-          List<ToolSpecification> toolSpecifications, List<Object> toolObjects, int maxToolRounds) {
+          List<ToolSpecification> toolSpecifications, Map<String, ToolExecutor> toolExecutors, int maxToolRounds) {
         this.chatModel = chatModel;
         this.context = context;
         this.enhancers = enhancers;
         this.toolSpecifications = toolSpecifications;
-        this.toolObjects = toolObjects;
+        this.toolExecutors = toolExecutors;
         this.maxToolRounds = maxToolRounds;
     }
 
@@ -99,71 +99,20 @@ public class Agent {
     }
 
     /**
-     * 执行工具：通过反射调用 @Tool 方法
+     * 执行工具：通过预建的 ToolExecutor 索引直接调用
      */
     private String executeTool(ToolExecutionRequest request) {
-        if (toolObjects == null || toolObjects.isEmpty()) {
-            return "无可用的工具";
+        ToolExecutor executor = toolExecutors.get(request.name());
+        if (executor == null) {
+            return "工具不存在: " + request.name();
         }
-
-        for (Object toolObject : toolObjects) {
-            for (Method method : toolObject.getClass().getDeclaredMethods()) {
-                if (method.isAnnotationPresent(Tool.class) && method.getName().equals(request.name())) {
-                    try {
-                        method.setAccessible(true);
-                        Object result = invokeToolMethod(method, toolObject, request.arguments());
-                        String resultStr = result != null ? result.toString() : "null";
-                        log.info("工具执行成功: {} = {}", request.name(), resultStr);
-                        return resultStr;
-                    } catch (Exception e) {
-                        log.error("工具执行失败: {}", request.name(), e);
-                        return "工具执行失败: " + e.getMessage();
-                    }
-                }
-            }
+        try {
+            String result = executor.execute(request, null);
+            log.info("工具执行成功: {} = {}", request.name(), result);
+            return result;
+        } catch (Exception e) {
+            log.error("工具执行失败: {}", request.name(), e);
+            return "工具执行失败: " + e.getMessage();
         }
-
-        return "工具不存在: " + request.name();
-    }
-
-    private Object invokeToolMethod(Method method, Object target, String argumentsJson) throws Exception {
-        if (method.getParameterCount() == 0) {
-            return method.invoke(target);
-        }
-
-        // 使用 Gson 解析参数
-        var gson = new com.google.gson.Gson();
-        var type = new com.google.gson.reflect.TypeToken<java.util.Map<String, Object>>() {}.getType();
-        java.util.Map<String, Object> args = gson.fromJson(argumentsJson, type);
-
-        java.lang.reflect.Parameter[] parameters = method.getParameters();
-        Object[] methodArgs = new Object[parameters.length];
-
-        for (int i = 0; i < parameters.length; i++) {
-            Object value = args.get(parameters[i].getName());
-            methodArgs[i] = convertType(value, parameters[i].getType());
-        }
-
-        return method.invoke(target, methodArgs);
-    }
-
-    private Object convertType(Object value, Class<?> targetType) {
-        if (value == null) return null;
-        if (targetType.isInstance(value)) return value;
-
-        if (targetType == int.class || targetType == Integer.class)
-            return ((Number) value).intValue();
-        if (targetType == long.class || targetType == Long.class)
-            return ((Number) value).longValue();
-        if (targetType == double.class || targetType == Double.class)
-            return ((Number) value).doubleValue();
-        if (targetType == float.class || targetType == Float.class)
-            return ((Number) value).floatValue();
-        if (targetType == boolean.class || targetType == Boolean.class)
-            return Boolean.valueOf(value.toString());
-        if (targetType == String.class)
-            return value.toString();
-
-        return value;
     }
 }

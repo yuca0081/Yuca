@@ -43,6 +43,10 @@
             <groupId>org.yuca</groupId>
             <artifactId>yuca-assistant</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.yuca</groupId>
+            <artifactId>yuca-diet</artifactId>
+        </dependency>
 
         <!-- Spring Boot Test -->
         <dependency>

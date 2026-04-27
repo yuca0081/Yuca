@@ -110,7 +110,8 @@ import {
   FolderOpenOutline,
   ChatbubbleEllipsesOutline,
   BookOutline,
-  PersonOutline
+  PersonOutline,
+  RestaurantOutline
 } from '@vicons/ionicons5'
 
 const router = useRouter()
@@ -220,6 +221,11 @@ const functionItems: FunctionItem[] = [
     name: '测试',
     path: '/blog',
     icon: BookOutline
+  },
+  {
+    name: '饮食',
+    path: '/diet/record',
+    icon: RestaurantOutline
   },
   {
     name: '个人资料',

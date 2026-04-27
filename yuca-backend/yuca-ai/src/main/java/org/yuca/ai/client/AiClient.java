@@ -1,7 +1,6 @@
 package org.yuca.ai.client;
 
 import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
@@ -25,14 +24,10 @@ import java.util.function.Consumer;
 @RequiredArgsConstructor
 public class AiClient {
 
-    private final StreamingChatModel streamingChatModel;
     private final AgentFactory agentFactory;
 
     /**
      * 同步对话（无历史，适用于一次性调用如生成标题等）
-     *
-     * @param message 用户消息
-     * @return AI回复文本
      */
     public String chat(String message) {
         ChatRequest request = ChatRequest.builder()
@@ -44,10 +39,6 @@ public class AiClient {
 
     /**
      * 同步对话（带对话历史）
-     *
-     * @param message   用户消息
-     * @param sessionId 会话ID，用于加载和保存对话历史
-     * @return AI回复文本
      */
     public String chat(String message, String sessionId) {
         ChatContext context = new ChatContext();
@@ -62,19 +53,14 @@ public class AiClient {
     }
 
     /**
-     * 流式对话
-     *
-     * @param request          聊天请求
-     * @param tokenConsumer    token回调（每个token触发一次）
-     * @param responseConsumer 完成回调（流式结束时触发，含token统计）
-     * @return Flux<String> token流
+     * 流式对话（直接调用模型，不经过 Agent）
      */
     public Flux<String> streamChat(ChatRequest request,
                                    Consumer<String> tokenConsumer,
                                    Consumer<ChatResponse> responseConsumer) {
         Sinks.Many<String> sink = Sinks.many().multicast().onBackpressureBuffer();
 
-        streamingChatModel.chat(request, new StreamingChatResponseHandler() {
+        agentFactory.buildStreamingChatModel().chat(request, new StreamingChatResponseHandler() {
             @Override
             public void onPartialResponse(String partialResponse) {
                 if (partialResponse != null && !partialResponse.isEmpty()) {

@@ -12,6 +12,7 @@ const navItems = [
   { path: '/notes', label: '笔记' },
   { path: '/wiki', label: '知识库' },
   { path: '/assistant', label: 'AI 助手' },
+  { path: '/diet', label: '饮食' },
 ]
 
 export default function Navbar() {

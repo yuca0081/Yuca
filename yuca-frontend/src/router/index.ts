@@ -105,6 +105,30 @@ const routes = [
     meta: { title: '图标测试', requireAuth: false }
   },
   {
+    path: '/diet/record',
+    name: 'DietRecord',
+    component: () => import('@/views/diet/DietRecord.vue'),
+    meta: { title: '饮食记录', requireAuth: true }
+  },
+  {
+    path: '/diet/daily',
+    name: 'DietDaily',
+    component: () => import('@/views/diet/DietDaily.vue'),
+    meta: { title: '每日统计', requireAuth: true }
+  },
+  {
+    path: '/diet/trend',
+    name: 'DietTrend',
+    component: () => import('@/views/diet/DietTrend.vue'),
+    meta: { title: '趋势统计', requireAuth: true }
+  },
+  {
+    path: '/diet/goal',
+    name: 'DietGoal',
+    component: () => import('@/views/diet/DietGoal.vue'),
+    meta: { title: '目标设置', requireAuth: true }
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     redirect: '/'

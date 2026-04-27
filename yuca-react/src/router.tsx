@@ -9,6 +9,7 @@ import Tools from '@/pages/Tools'
 import Notes from '@/pages/Notes'
 import Wiki from '@/pages/Wiki'
 import Assistant from '@/pages/Assistant'
+import Diet from '@/pages/Diet'
 
 const router = createBrowserRouter([
   {
@@ -29,6 +30,7 @@ const router = createBrowserRouter([
       { path: '/notes', element: <Notes /> },
       { path: '/wiki', element: <Wiki /> },
       { path: '/assistant', element: <Assistant /> },
+      { path: '/diet', element: <Diet /> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },

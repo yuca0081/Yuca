@@ -25,6 +25,7 @@
         <module>yuca-knowledge</module>
         <module>yuca-note</module>
         <module>yuca-assistant</module>
+        <module>yuca-diet</module>
         <module>yuca-app</module>
     </modules>
 
@@ -93,6 +94,11 @@
             <dependency>
                 <groupId>org.yuca</groupId>
                 <artifactId>yuca-assistant</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.yuca</groupId>
+                <artifactId>yuca-diet</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

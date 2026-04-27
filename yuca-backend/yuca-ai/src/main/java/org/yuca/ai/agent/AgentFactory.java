@@ -1,9 +1,14 @@
 package org.yuca.ai.agent;
 
+import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.agent.tool.ToolSpecifications;
 import dev.langchain4j.community.model.dashscope.QwenChatModel;
+import dev.langchain4j.community.model.dashscope.QwenStreamingChatModel;
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.StreamingChatModel;
+import dev.langchain4j.service.tool.DefaultToolExecutor;
+import dev.langchain4j.service.tool.ToolExecutor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.yuca.ai.agent.enhancer.ChatEnhancer;
@@ -15,8 +20,11 @@ import org.yuca.ai.skill.SkillRegistry;
 import org.yuca.ai.tool.Calculator;
 import org.yuca.ai.tool.SkillTool;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Agent 工厂
@@ -46,6 +54,8 @@ public class AgentFactory {
                 .build();
     }
 
+
+
     /**
      * 创建默认 Agent（带历史记忆、系统提示、工具调用）
      * 适用于多轮对话场景
@@ -64,10 +74,16 @@ public class AgentFactory {
         // 工具对象
         List<Object> toolObjects = List.of(new Calculator(), skillTool);
 
-        // 从工具对象提取 ToolSpecification
+        // 从工具对象提取 ToolSpecification 和 ToolExecutor
         List<ToolSpecification> specs = new ArrayList<>();
+        Map<String, ToolExecutor> executors = new HashMap<>();
         for (Object toolObject : toolObjects) {
             specs.addAll(ToolSpecifications.toolSpecificationsFrom(toolObject));
+            for (Method method : toolObject.getClass().getDeclaredMethods()) {
+                if (method.isAnnotationPresent(Tool.class)) {
+                    executors.put(method.getName(), new DefaultToolExecutor(toolObject, method));
+                }
+            }
         }
 
         return Agent.builder()
@@ -75,13 +91,24 @@ public class AgentFactory {
                 .context(context)
                 .enhancers(enhancers)
                 .toolSpecifications(specs)
-                .toolObjects(toolObjects)
+                .toolExecutors(executors)
                 .build();
     }
+
+    // =============================================================
 
     private ChatModel buildChatModel() {
         AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
         return QwenChatModel.builder()
+                .modelName(dashscope.getModelName())
+                .apiKey(dashscope.getApiKey())
+                .baseUrl(dashscope.getBaseUrl())
+                .build();
+    }
+
+    public StreamingChatModel buildStreamingChatModel() {
+        AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
+        return QwenStreamingChatModel.builder()
                 .modelName(dashscope.getModelName())
                 .apiKey(dashscope.getApiKey())
                 .baseUrl(dashscope.getBaseUrl())
