@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useUserStore } from '@/stores/user'
-import { BookOpen, Wrench, FileText, BookMarked, Bot, ArrowRight, Sun, Cloud, CloudRain, Clock } from 'lucide-react'
+import { BookOpen, Wrench, FileText, BookMarked, Bot, ArrowRight, Sun, Cloud, CloudRain, Clock, UtensilsCrossed } from 'lucide-react'
 
 const quickLinks = [
   { path: '/tools', label: '开发者工具', desc: 'JSON、JWT、Base64...', icon: Wrench },
   { path: '/notes', label: '我的笔记', desc: '随时记录想法', icon: FileText },
   { path: '/blog', label: '博客文章', desc: '分享知识与经验', icon: BookOpen },
   { path: '/wiki', label: '知识库', desc: '构建知识体系', icon: BookMarked },
+  { path: '/diet', label: '饮食记录', desc: '追踪每日营养摄入', icon: UtensilsCrossed },
   { path: '/assistant', label: 'AI 助手', desc: '智能对话助手', icon: Bot },
 ]
 

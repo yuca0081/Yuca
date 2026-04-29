@@ -56,11 +56,15 @@ function DateNav() {
 }
 
 /* ── Record List ── */
-function RecordList() {
-  const { records, deleteRecord } = useDietStore()
-  const [modal, setModal] = useState<'create' | 'edit' | null>(null)
-  const [editing, setEditing] = useState<DietRecord | null>(null)
-  const { currentDate, createRecord, updateRecord } = useDietStore()
+function RecordList({
+  modal, setModal, editing, setEditing,
+}: {
+  modal: 'create' | 'edit' | null
+  setModal: (m: 'create' | 'edit' | null) => void
+  editing: DietRecord | null
+  setEditing: (r: DietRecord | null) => void
+}) {
+  const { records, deleteRecord, currentDate, createRecord, updateRecord } = useDietStore()
 
   const labels: Record<number, string> = { 1: '早餐', 2: '午餐', 3: '晚餐', 4: '加餐' }
   const meals = [1, 2, 3, 4]
@@ -78,7 +82,7 @@ function RecordList() {
       {records.length === 0 && (
         <div className="text-center py-16 text-[#6B5344]">
           <p className="text-lg">今天还没有饮食记录</p>
-          <p className="text-sm mt-2 opacity-70">点击右下角按钮添加记录</p>
+          <p className="text-sm mt-2 opacity-70">点击右上角 + 按钮添加记录</p>
         </div>
       )}
 
@@ -114,14 +118,6 @@ function RecordList() {
         </div>
       ))}
 
-      {/* Add FAB */}
-      <button
-        onClick={() => setModal('create')}
-        className="fixed bottom-8 right-8 w-14 h-14 bg-[#FF6B35] text-white border-2 border-foreground shadow-[4px_4px_0_0_#1a1a1a] hover:shadow-[2px_2px_0_0_#1a1a1a] hover:translate-x-[2px] hover:translate-y-[2px] transition-all flex items-center justify-center cursor-pointer"
-      >
-        <Plus className="w-6 h-6" />
-      </button>
-
       {modal && (
         <RecordForm
           mode={modal}
@@ -154,23 +150,23 @@ function RecordForm({
     recordDate: string
     mealType: number
     foodName: string
-    amount: number
+    amount: string
     unit: string
-    calories: number
-    protein: number
-    fat: number
-    carbs: number
+    calories: string
+    protein: string
+    fat: string
+    carbs: string
     remark: string
   }>({
     recordDate: mode === 'edit' && record ? record.recordDate : currentDate,
     mealType: record?.mealType ?? 1,
     foodName: record?.foodName ?? '',
-    amount: record?.amount ?? 0,
+    amount: record?.amount != null ? String(record.amount) : '',
     unit: record?.unit ?? 'g',
-    calories: record?.calories ?? 0,
-    protein: record?.protein ?? 0,
-    fat: record?.fat ?? 0,
-    carbs: record?.carbs ?? 0,
+    calories: record?.calories != null ? String(record.calories) : '',
+    protein: record?.protein != null ? String(record.protein) : '',
+    fat: record?.fat != null ? String(record.fat) : '',
+    carbs: record?.carbs != null ? String(record.carbs) : '',
     remark: record?.remark ?? '',
   })
   const [loading, setLoading] = useState(false)
@@ -184,8 +180,8 @@ function RecordForm({
   const updateForm = (partial: Partial<typeof form>) => setForm((f) => ({ ...f, ...partial }))
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center" onClick={onClose}>
-      <div className="block-card p-6 w-[90%] max-w-md max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center">
+      <div className="block-card p-6 w-[90%] max-w-md max-h-[85vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-5">
           <h3 className="font-bold text-lg">{mode === 'create' ? '添加记录' : '编辑记录'}</h3>
           <button onClick={onClose} className="p-1 cursor-pointer"><X className="w-5 h-5" /></button>
@@ -212,7 +208,7 @@ function RecordForm({
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="text-xs font-medium text-[#6B5344] block mb-1">食用量</label>
-              <input type="number" min="0" value={form.amount} onChange={(e) => updateForm({ amount: Number(e.target.value) })}
+              <input type="number" min="0" placeholder="0" value={form.amount} onChange={(e) => updateForm({ amount: e.target.value })}
                 className="w-full border-2 border-foreground px-3 py-2 text-sm bg-transparent" />
             </div>
             <div className="w-20">
@@ -227,7 +223,7 @@ function RecordForm({
           </div>
           <div>
             <label className="text-xs font-medium text-[#6B5344] block mb-1">热量 (kcal)</label>
-            <input type="number" min="0" value={form.calories} onChange={(e) => updateForm({ calories: Number(e.target.value) })}
+            <input type="number" min="0" placeholder="0" value={form.calories} onChange={(e) => updateForm({ calories: e.target.value })}
               className="w-full border-2 border-foreground px-3 py-2 text-sm bg-transparent" />
           </div>
           <div className="flex gap-3">
@@ -236,7 +232,7 @@ function RecordForm({
                 <label className="text-xs font-medium text-[#6B5344] block mb-1">
                   {{ protein: '蛋白质', fat: '脂肪', carbs: '碳水' }[key]} (g)
                 </label>
-                <input type="number" min="0" value={form[key]} onChange={(e) => updateForm({ [key]: Number(e.target.value) })}
+                <input type="number" min="0" placeholder="0" value={form[key]} onChange={(e) => updateForm({ [key]: e.target.value })}
                   className="w-full border-2 border-foreground px-3 py-2 text-sm bg-transparent" />
               </div>
             ))}
@@ -254,7 +250,14 @@ function RecordForm({
             onClick={async () => {
               if (!form.foodName || !form.amount || !form.calories) return
               setLoading(true)
-              try { await onSubmit(form) } finally { setLoading(false) }
+              try { await onSubmit({
+                    ...form,
+                    amount: Number(form.amount),
+                    calories: Number(form.calories),
+                    protein: Number(form.protein) || 0,
+                    fat: Number(form.fat) || 0,
+                    carbs: Number(form.carbs) || 0,
+                  }) } finally { setLoading(false) }
             }}
             disabled={loading}
             className="btn-primary disabled:opacity-50"
@@ -501,6 +504,8 @@ function GoalSettings() {
 /* ── Main Diet Page ── */
 export default function Diet() {
   const [activeTab, setActiveTab] = useState<TabKey>('record')
+  const [modal, setModal] = useState<'create' | 'edit' | null>(null)
+  const [editing, setEditing] = useState<DietRecord | null>(null)
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -521,8 +526,16 @@ export default function Diet() {
       </div>
 
       {/* Content */}
-      <div className="block-card p-6">
-        {activeTab === 'record' && <RecordList />}
+      <div className="block-card p-6 relative">
+        {activeTab === 'record' && (
+          <button
+            onClick={() => setModal('create')}
+            className="absolute top-4 right-4 w-10 h-10 bg-[#FF6B35] text-white border-2 border-foreground shadow-[4px_4px_0_0_#1a1a1a] hover:shadow-[2px_2px_0_0_#1a1a1a] hover:translate-x-[2px] hover:translate-y-[2px] transition-all flex items-center justify-center cursor-pointer"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        )}
+        {activeTab === 'record' && <RecordList modal={modal} setModal={setModal} editing={editing} setEditing={setEditing} />}
         {activeTab === 'daily' && <DailySummary />}
         {activeTab === 'trend' && <Trend />}
         {activeTab === 'goal' && <GoalSettings />}

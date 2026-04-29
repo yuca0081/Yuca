@@ -102,7 +102,6 @@ public class AgentFactory {
         return QwenChatModel.builder()
                 .modelName(dashscope.getModelName())
                 .apiKey(dashscope.getApiKey())
-                .baseUrl(dashscope.getBaseUrl())
                 .build();
     }
 
@@ -111,7 +110,6 @@ public class AgentFactory {
         return QwenStreamingChatModel.builder()
                 .modelName(dashscope.getModelName())
                 .apiKey(dashscope.getApiKey())
-                .baseUrl(dashscope.getBaseUrl())
                 .build();
     }
 
