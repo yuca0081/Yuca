@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Copy, Check, ArrowRightLeft, FileJson, Key, Binary, Link2, Clock, Hash, Regex, Fingerprint, FileText } from 'lucide-react'
+import { sha256 } from '@/utils/sha256'
 
 const inputCls = "bg-white border-2 border-foreground focus:border-[#FF6B35] rounded-none shadow-none"
 const cardCls = "bg-white p-4 border-2 border-foreground shadow-[6px_6px_0_#2C1810] flex flex-col"
@@ -188,14 +189,16 @@ function HashTool() {
   const [results, setResults] = useState<Record<string, string>>({})
 
   const generate = async () => {
-    const encoder = new TextEncoder()
-    const data = encoder.encode(input)
-    const algorithms = ['SHA-1', 'SHA-256', 'SHA-512']
     const newResults: Record<string, string> = {}
-    for (const alg of algorithms) {
-      const hashBuffer = await crypto.subtle.digest(alg, data)
-      const hashArray = Array.from(new Uint8Array(hashBuffer))
-      newResults[alg] = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+    newResults['SHA-256'] = await sha256(input)
+    if (typeof crypto !== 'undefined' && crypto.subtle) {
+      const encoder = new TextEncoder()
+      const data = encoder.encode(input)
+      for (const alg of ['SHA-1', 'SHA-512'] as const) {
+        const hashBuffer = await crypto.subtle.digest(alg, data)
+        const hashArray = Array.from(new Uint8Array(hashBuffer))
+        newResults[alg] = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+      }
     }
     setResults(newResults)
   }

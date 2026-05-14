@@ -1,0 +1,10 @@
+# 云服务器生产环境配置
+spring:
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:5432/yuca?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+  data:
+    redis:
+      host: 127.0.0.1
+
+minio:
+  endpoint: http://127.0.0.1:9000

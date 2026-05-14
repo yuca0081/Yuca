@@ -4,6 +4,7 @@ import { useUserStore } from '@/stores/user'
 import { login } from '@/api/user'
 import { Input } from '@/components/ui/input'
 import { LogIn, Eye, EyeOff } from 'lucide-react'
+import { sha256 } from '@/utils/sha256'
 
 export default function Login() {
   const [account, setAccount] = useState('')
@@ -22,11 +23,7 @@ export default function Login() {
 
     try {
       // SHA-256 哈希密码，避免明文传输
-      const encoder = new TextEncoder()
-      const data = encoder.encode(password)
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-      const hashArray = Array.from(new Uint8Array(hashBuffer))
-      const hashedPassword = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+      const hashedPassword = await sha256(password)
 
       const res = await login({ account, password: hashedPassword }) as any
       setTokens(res.accessToken, res.refreshToken)

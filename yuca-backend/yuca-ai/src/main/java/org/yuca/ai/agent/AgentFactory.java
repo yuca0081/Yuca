@@ -1,14 +1,9 @@
 package org.yuca.ai.agent;
 
-import dev.langchain4j.agent.tool.Tool;
-import dev.langchain4j.agent.tool.ToolSpecification;
-import dev.langchain4j.agent.tool.ToolSpecifications;
 import dev.langchain4j.community.model.dashscope.QwenChatModel;
 import dev.langchain4j.community.model.dashscope.QwenStreamingChatModel;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
-import dev.langchain4j.service.tool.DefaultToolExecutor;
-import dev.langchain4j.service.tool.ToolExecutor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.yuca.ai.agent.enhancer.ChatEnhancer;
@@ -19,12 +14,9 @@ import org.yuca.ai.history.ChatHistoryStore;
 import org.yuca.ai.skill.SkillRegistry;
 import org.yuca.ai.tool.Calculator;
 import org.yuca.ai.tool.SkillTool;
+import org.yuca.ai.tool.ToolExtractor;
 
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Agent 工厂
@@ -71,27 +63,15 @@ public class AgentFactory {
                 new HistoryEnhancer(historyStore, 50)
         );
 
-        // 工具对象
-        List<Object> toolObjects = List.of(new Calculator(), skillTool);
-
         // 从工具对象提取 ToolSpecification 和 ToolExecutor
-        List<ToolSpecification> specs = new ArrayList<>();
-        Map<String, ToolExecutor> executors = new HashMap<>();
-        for (Object toolObject : toolObjects) {
-            specs.addAll(ToolSpecifications.toolSpecificationsFrom(toolObject));
-            for (Method method : toolObject.getClass().getDeclaredMethods()) {
-                if (method.isAnnotationPresent(Tool.class)) {
-                    executors.put(method.getName(), new DefaultToolExecutor(toolObject, method));
-                }
-            }
-        }
+        ToolExtractor toolExtractor = new ToolExtractor(List.of(new Calculator(), skillTool));
 
         return Agent.builder()
                 .chatModel(buildChatModel())
                 .context(context)
                 .enhancers(enhancers)
-                .toolSpecifications(specs)
-                .toolExecutors(executors)
+                .toolSpecifications(toolExtractor.getSpecifications())
+                .toolExecutors(toolExtractor.getExecutors())
                 .build();
     }
 

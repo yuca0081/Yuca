@@ -1,7 +1,15 @@
-import { Outlet } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import Navbar from './Navbar'
+import { useUserStore } from '@/stores/user'
 
 export default function MainLayout() {
+  const isLoggedIn = useUserStore((s) => s.isLoggedIn)
+  const location = useLocation()
+
+  if (!isLoggedIn()) {
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />
+  }
+
   return (
     <div className="min-h-screen bg-[#FFFAF0]">
       <Navbar />

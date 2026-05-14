@@ -3,7 +3,7 @@ package org.yuca.ai.agent;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.ToolExecutionResultMessage;
+import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Agent 执行引擎
@@ -58,7 +59,7 @@ public class Agent {
         ChatResponse response = null;
 
         for (int round = 0; round < maxToolRounds; round++) {
-            var reqBuilder = ChatRequest.builder()
+            ChatRequest.Builder reqBuilder = ChatRequest.builder()
                     .messages(messages);
 
             if (toolSpecifications != null && !toolSpecifications.isEmpty()) {
@@ -67,17 +68,26 @@ public class Agent {
 
             response = chatModel.chat(reqBuilder.build());
 
-            if (response.aiMessage() == null
-                    || !response.aiMessage().hasToolExecutionRequests()) {
+            if (response.aiMessage() == null || !response.aiMessage().hasToolExecutionRequests()) {
                 break;
             }
 
-            // 执行工具调用
-            messages.add(response.aiMessage());
+            // 执行工具调用，将结果转为 UserMessage（兼容 Qwen/DashScope）
+            StringBuilder resultsBuilder = new StringBuilder();
             for (ToolExecutionRequest toolReq : response.aiMessage().toolExecutionRequests()) {
                 String result = executeTool(toolReq);
-                messages.add(ToolExecutionResultMessage.from(toolReq, result));
+                resultsBuilder.append("[").append(toolReq.name()).append("] ")
+                        .append(result).append("\n");
             }
+
+            String toolCallsSummary = response.aiMessage().toolExecutionRequests().stream()
+                    .map(req -> "- " + req.name() + "(" + req.arguments() + ")")
+                    .collect(Collectors.joining("\n"));
+
+            messages.add(UserMessage.from(
+                    "你调用了以下工具：\n" + toolCallsSummary +
+                    "\n\n执行结果：\n" + resultsBuilder +
+                    "\n请根据以上结果继续回答用户。"));
 
             log.debug("工具调用轮次 {} 完成", round + 1);
         }

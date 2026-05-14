@@ -1,135 +1,91 @@
-# CLAUDE.md
+# CLAUDE.md — yuca-backend
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本文件为 Claude Code (claude.ai/code) 在本仓库中工作时提供指导。
 
-## Project Overview
+## 多模块架构
 
-Yuca is a Spring Boot 3.5.9 application built with Java 21 and Maven. The project uses:
-- **MVC (Model-View-Controller)** architecture
-- **MyBatis-Plus 3.5.9** for ORM and database operations
-- **Redis** for caching
-- **PostgreSQL** as the primary database
-- **Lombok** for reducing boilerplate code
+本项目为 **Maven 多模块项目**（父 `pom.xml` 的 packaging 为 `pom`）。`yuca-app` 模块是 Spring Boot 启动入口，聚合所有其他模块。
 
-## Project Structure
-
-The project is organized as a single module with feature-based packaging:
+### 模块依赖链
 
 ```
-yuca/
-├── pom.xml                          # Maven POM
-└── src/main/java/org/yuca/yuca/
-    ├── YucaApplication.java         # Spring Boot application entry point
-    ├── common/                      # Common utilities (shared components)
-    │   ├── annotation/              # Custom annotations (@RequireLogin, @SkipAuth)
-    │   ├── constant/                # Constants (RedisKey, etc.)
-    │   ├── exception/               # Exception handling (BusinessException, GlobalExceptionHandler)
-    │   ├── interceptor/             # Interceptors (JwtAuthenticationFilter)
-    │   └── response/                # Common response wrappers (Result, ErrorCode)
-    ├── config/                      # Configuration classes
-    │   ├── PasswordEncoderConfig.java  # Password encryption config
-    │   ├── SwaggerConfig.java         # API documentation config
-    │   └── WebConfig.java             # Web MVC config
-    ├── security/                    # Security components
-    │   ├── JwtTokenProvider.java    # JWT token generation and validation
-    │   └── TokenCache.java          # Token cache interface
-    └── user/                        # User feature module
-        ├── controller/              # User REST controllers
-        ├── service/                 # User business services
-        ├── mapper/                  # User MyBatis-Plus mappers
-        ├── entity/                  # User database entities
-        ├── dto/                     # User DTOs
-        │   ├── request/             # Request DTOs
-        │   ├── response/            # Response DTOs
-        │   └── internal/            # Internal DTOs
-        └── cache/                   # User cache services
+yuca-common（无依赖）
+  └── yuca-infrastructure（依赖 common）
+        ├── yuca-ai（依赖 infrastructure）
+        │     └── yuca-assistant（依赖 ai + infrastructure）
+        ├── yuca-user（依赖 infrastructure）
+        ├── yuca-knowledge（依赖 infrastructure）
+        ├── yuca-note（依赖 infrastructure）
+        └── yuca-diet（依赖 infrastructure）
+              └── yuca-app（聚合模块，依赖上述所有模块）
 ```
 
-## Build and Development Commands
+### 各模块职责
 
-### Build
+| 模块 | 职责 | 核心类 |
+|------|------|--------|
+| `yuca-common` | 公共注解、常量、异常、统一响应 `Result<T>` | `@RequireLogin`、`@SkipAuth`、`BusinessException`、`ErrorCode` |
+| `yuca-infrastructure` | 数据库、Redis、JWT、MinIO、Swagger、全局异常处理 | `JwtAuthenticationFilter`、`JwtTokenProvider`、`GlobalExceptionHandler`、`MinioFileStorageService` |
+| `yuca-ai` | AI 客户端、Agent 框架、Skill/Tool 系统 | `AiClient`、`AgentFactory`、`AgentBuilder`、`SkillRegistry`、`PostgresChatHistoryStore` |
+| `yuca-user` | 用户认证与管理 | `UserController`、`UserService`、`TokenService` |
+| `yuca-knowledge` | 知识库、文档处理、向量检索 | `KnowledgeBaseController`、`KnowledgeDocService`（pgvector 1024 维嵌入） |
+| `yuca-note` | 笔记本、文件夹、文档、标签 | `NoteBookController`、`NoteItemController`、`NoteTagController` |
+| `yuca-assistant` | AI 聊天会话 + SSE 流式传输 | `AssistantController`、`AssistantService`、`SseEvent` |
+| `yuca-diet` | 饮食记录、目标、趋势分析 | `DietRecordController`、`DietGoalController`、`DietTrendController` |
+
+## 构建命令
+
 ```bash
+# 从项目根目录构建所有模块
 ./mvnw clean install
-```
 
-### Run the application
-```bash
-./mvnw spring-boot:run
-```
+# 启动应用
+./mvnw spring-boot:run -pl yuca-app
 
-### Run tests
-```bash
-# Run all tests
+# 构建指定模块（及其依赖）
+./mvnw clean install -pl yuca-note -am
+
+# 运行测试
 ./mvnw test
 
-# Run a specific test class
+# 运行指定测试
 ./mvnw test -Dtest=YucaApplicationTests
+
+# 打包可执行 JAR
+./mvnw package -pl yuca-app
 ```
 
-### Package
-```bash
-./mvnw package
-```
+## 包结构约定
 
-## MVC Development Guidelines
+每个模块使用 `org.yuca.<模块名>` 作为基础包，包含：
+- `controller/` — REST 控制器
+- `service/` — 业务逻辑（按需使用接口 + 实现）
+- `mapper/` — MyBatis-Plus Mapper 接口
+- `entity/` — 数据库实体（`@TableName`、`@TableId(type=IdType.AUTO)`、`@TableLogic`）
+- `dto/request/`、`dto/response/`、`dto/internal/` — API 和模块间通信的 DTO
+- `enums/` — 模块枚举
+- `config/` — Spring `@Configuration` 配置类（仅在需要时添加）
 
-### Creating a New Feature
+## MyBatis-Plus 配置
 
-When adding a new feature (e.g., "order" module):
+- 驼峰映射已启用（`map-underscore-to-camel-case: true`）
+- 逻辑删除：`deleted` 字段（1=已删除，0=正常）
+- Mapper XML 位置：`classpath*:/mapper/**/*.xml`（目前无 XML 文件，使用 MyBatis-Plus 代码优先方式）
+- Entity 扫描包：`org.yuca.yuca.user.entity`、`org.yuca.yuca.assistant.entity`
 
-1. **Create feature directory**:
-   ```bash
-   mkdir -p src/main/java/org/yuca/yuca/order/{controller,service,mapper,entity,dto/{request,response,internal},cache}
-   ```
+## 数据库
 
-2. **Create Entity**: `src/main/java/org/yuca/yuca/order/entity/Order.java` with MyBatis-Plus annotations
-3. **Create Mapper**: `src/main/java/org/yuca/yuca/order/mapper/OrderMapper.java`
-4. **Create Service**: `src/main/java/org/yuca/yuca/order/service/OrderService.java`
-5. **Create DTOs**: in `order/dto/request/` and `order/dto/response/`
-6. **Create Controller**: `src/main/java/org/yuca/yuca/order/controller/OrderController.java`
+- **PostgreSQL** + **pgvector** 扩展（向量嵌入）
+- DDL 脚本：`yuca-app/src/main/resources/ddl/`（每个模块一个文件）
+- Flyway 迁移：`yuca-ai/src/main/resources/db/migration/`（V1、V2 为 AI 表）
+- 知识库分块使用 1024 维向量 + HNSW 索引进行相似性搜索
 
-### Key Principles
+## 新增模块步骤
 
-- **Feature-based organization**: Each feature has its own package
-- **Common components**: Shared utilities in `common/` package
-- **Configuration**: App-level configs in `config/` package
-- **Security**: Security components in `security/` package
-- **Controllers** are thin - handle HTTP and delegate to services
-- **Services** contain business logic
-- **Mappers** handle database operations using MyBatis-Plus
-- **Entities** represent database tables
-- **DTOs** separate API layer from business logic
-
-## MyBatis-Plus Configuration
-
-MyBatis-Plus is configured with:
-- Automatic camel case mapping (underscore to camel case)
-- Auto-increment ID generation
-- Logical delete support (deleted field: 1=deleted, 0=active)
-- SQL logging enabled
-- Mapper location: `classpath*:/mapper/**/*.xml`
-- Entity package: `org.yuca.yuca.*.entity`
-
-When creating entities:
-- Use `@TableName` to specify the database table name
-- Use `@TableId(type = IdType.AUTO)` for auto-increment primary keys
-- Use `@TableLogic` for logical delete fields
-- Use `@TableField` for column mappings if needed
-
-## Database Configuration
-
-PostgreSQL connection:
-- Host: 47.94.247.12:5432
-- Database: yuca
-- Credentials configured in application.yml
-
-Redis connection:
-- Host: 47.94.247.12:6379
-- Password configured in application.yml
-
-## Notes
-
-- Lombok is configured as an annotation processor in `maven-compiler-plugin`
-- The Spring Boot Maven plugin is configured to exclude Lombok from the final artifact
-- Default server port: 8500
-- Cache TTL: 1 hour (3600000ms)
+1. 创建 `yuca-<名称>/` 目录及标准 `pom.xml`（parent = `yuca-backend`）
+2. 在父 `pom.xml` 中添加 `<module>yuca-<名称></module>`
+3. 在父 `<dependencyManagement>` 中添加版本管理的依赖声明
+4. 在 `yuca-app/pom.xml` 中添加依赖
+5. 遵循 `org.yuca.<名称>/{controller,service,mapper,entity,dto,...}` 包结构
+6. 在 `yuca-app/src/main/resources/ddl/` 中添加 DDL 脚本
+7. 在 `application.yml` 的 `springdoc.packages-to-scan` 中添加新 Controller 包路径

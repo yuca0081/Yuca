@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { resetPassword } from '@/api/user'
 import { Input } from '@/components/ui/input'
 import { KeyRound, Eye, EyeOff } from 'lucide-react'
+import { sha256 } from '@/utils/sha256'
 
 export default function ResetPassword() {
   const [account, setAccount] = useState('')
@@ -27,11 +28,7 @@ export default function ResetPassword() {
 
     try {
       // SHA-256 哈希密码
-      const encoder = new TextEncoder()
-      const data = encoder.encode(newPassword)
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-      const hashArray = Array.from(new Uint8Array(hashBuffer))
-      const hashedPassword = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+      const hashedPassword = await sha256(newPassword)
 
       await resetPassword({ account, newPassword: hashedPassword }) as any
       setSuccess(true)

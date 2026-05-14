@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDietStore } from '@/stores/diet'
 import { getRecommendedMealType } from '@/api/diet'
 import { MEAL_TYPE_OPTIONS } from '@/types/diet'
 import type { DietRecord, CreateRecordRequest, UpdateRecordRequest } from '@/types/diet'
-import { UtensilsCrossed, BarChart3, TrendingUp, Target, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { chatWithDietAssistant } from '@/api/diet'
+import { UtensilsCrossed, BarChart3, TrendingUp, Target, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, X, Bot, Send, User } from 'lucide-react'
 
 type TabKey = 'record' | 'daily' | 'trend' | 'goal'
 
@@ -27,6 +28,7 @@ function round(val: number | undefined): string {
 /* ── Date Navigator ── */
 function DateNav() {
   const { currentDate, setDate } = useDietStore()
+  const dateInputRef = useRef<HTMLInputElement>(null)
 
   const change = (delta: number) => {
     const d = new Date(currentDate)
@@ -34,19 +36,34 @@ function DateNav() {
     setDate(formatTs(d.getTime()))
   }
 
+  const displayDate = (() => {
+    const d = new Date(currentDate + 'T00:00:00')
+    const month = d.getMonth() + 1
+    const day = d.getDate()
+    const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+    return `${month}月${day}日 ${weekdays[d.getDay()]}`
+  })()
+
   return (
     <div className="flex items-center justify-center gap-3 mb-6">
       <button onClick={() => change(-1)} className="p-2 border-2 border-foreground hover:bg-[#FF6B35] hover:text-white transition-colors cursor-pointer">
         <ChevronLeft className="w-4 h-4" />
       </button>
+      <button
+        onClick={() => dateInputRef.current?.showPicker()}
+        className="border-2 border-foreground px-3 py-1.5 text-sm bg-transparent text-center font-medium cursor-pointer hover:bg-[#FF6B35] hover:text-white transition-colors"
+      >
+        {displayDate}
+      </button>
       <input
+        ref={dateInputRef}
         type="date"
         value={currentDate}
         onChange={(e) => {
           const val = e.target.value
           if (val) { setDate(val) }
         }}
-        className="border-2 border-foreground px-3 py-1.5 text-sm bg-transparent text-center font-medium cursor-pointer"
+        className="sr-only"
       />
       <button onClick={() => change(1)} className="p-2 border-2 border-foreground hover:bg-[#FF6B35] hover:text-white transition-colors cursor-pointer">
         <ChevronRight className="w-4 h-4" />
@@ -64,7 +81,10 @@ function RecordList({
   editing: DietRecord | null
   setEditing: (r: DietRecord | null) => void
 }) {
-  const { records, deleteRecord, currentDate, createRecord, updateRecord } = useDietStore()
+  const { records, deleteRecord, currentDate, createRecord, updateRecord, loadRecords } = useDietStore()
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+
+  useEffect(() => { loadRecords() }, [])
 
   const labels: Record<number, string> = { 1: '早餐', 2: '午餐', 3: '晚餐', 4: '加餐' }
   const meals = [1, 2, 3, 4]
@@ -108,7 +128,7 @@ function RecordList({
                   <button onClick={() => { setEditing(r); setModal('edit') }} className="p-1.5 hover:bg-[#FFF5E6] transition-colors cursor-pointer">
                     <Pencil className="w-4 h-4 text-[#6B5344]" />
                   </button>
-                  <button onClick={() => { if (confirm('确定删除？')) deleteRecord(r.id) }} className="p-1.5 hover:bg-red-50 transition-colors cursor-pointer">
+                  <button onClick={() => setDeletingId(r.id)} className="p-1.5 hover:bg-red-50 transition-colors cursor-pointer">
                     <Trash2 className="w-4 h-4 text-red-400" />
                   </button>
                 </div>
@@ -131,6 +151,24 @@ function RecordList({
             setEditing(null)
           }}
         />
+      )}
+
+      {deletingId !== null && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="block-card p-6 w-[90%] max-w-xs text-center">
+            <p className="font-bold text-lg mb-2">确定删除？</p>
+            <p className="text-sm text-[#6B5344] mb-5">删除后无法恢复</p>
+            <div className="flex justify-center gap-3">
+              <button onClick={() => setDeletingId(null)} className="btn-secondary">取消</button>
+              <button
+                onClick={async () => { await deleteRecord(deletingId); setDeletingId(null) }}
+                className="px-5 py-2 text-sm bg-red-500 text-white border-2 border-foreground shadow-[4px_4px_0_0_#1a1a1a] hover:shadow-[2px_2px_0_0_#1a1a1a] hover:translate-x-[2px] hover:translate-y-[2px] transition-all cursor-pointer"
+              >
+                删除
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -270,6 +308,118 @@ function RecordForm({
   )
 }
 
+/* ── Diet Assistant Chat ── */
+function DietAssistantChat({ onClose }: { onClose: () => void }) {
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const scrollToBottom = () => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+  }
+  useEffect(() => { scrollToBottom() }, [messages])
+
+  const handleSend = async () => {
+    if (!input.trim() || loading) return
+    const userMsg = { role: 'user' as const, content: input.trim() }
+    setMessages(prev => [...prev, userMsg])
+    setInput('')
+    setLoading(true)
+    try {
+      const res = await chatWithDietAssistant(userMsg.content)
+      setMessages(prev => [...prev, { role: 'assistant', content: res.content }])
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', content: '抱歉，出了点问题，请稍后再试。' }])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center">
+      <div className="block-card w-[90%] max-w-lg h-[70vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex justify-between items-center px-5 py-3 border-b-2 border-foreground shrink-0">
+          <div className="flex items-center gap-2">
+            <Bot className="w-5 h-5 text-[#FF6B35]" />
+            <span className="font-bold">饮食助手</span>
+          </div>
+          <button onClick={onClose} className="p-1 cursor-pointer"><X className="w-5 h-5" /></button>
+        </div>
+
+        {/* Messages */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-4">
+          {messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full text-[#6B5344]">
+              <div className="w-12 h-12 bg-[#FF6B35] flex items-center justify-center mb-3 border-2 border-foreground">
+                <Bot className="w-6 h-6 text-white" />
+              </div>
+              <p className="text-sm">告诉我你吃了什么，我来帮你记录和分析</p>
+            </div>
+          )}
+          {messages.map((msg, i) => (
+            <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {msg.role === 'assistant' && (
+                <div className="w-7 h-7 bg-foreground flex items-center justify-center shrink-0">
+                  <Bot className="w-3.5 h-3.5 text-white" />
+                </div>
+              )}
+              <div className={`max-w-[75%] px-3 py-2 text-sm leading-relaxed border-2 ${
+                msg.role === 'user'
+                  ? 'bg-[#FF6B35] text-white border-foreground'
+                  : 'bg-white text-foreground border-foreground'
+              }`}>
+                {msg.content}
+              </div>
+              {msg.role === 'user' && (
+                <div className="w-7 h-7 bg-[#FFF5E6] flex items-center justify-center shrink-0 border-2 border-foreground">
+                  <User className="w-3.5 h-3.5 text-foreground" />
+                </div>
+              )}
+            </div>
+          ))}
+          {loading && (
+            <div className="flex gap-2">
+              <div className="w-7 h-7 bg-foreground flex items-center justify-center shrink-0">
+                <Bot className="w-3.5 h-3.5 text-white" />
+              </div>
+              <div className="bg-white px-3 py-2 border-2 border-foreground">
+                <div className="flex gap-1">
+                  <span className="w-2 h-2 bg-[#6B5344] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 bg-[#6B5344] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 bg-[#6B5344] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input */}
+        <div className="px-4 py-3 border-t-2 border-foreground shrink-0">
+          <div className="flex gap-2">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+              placeholder="告诉我你吃了什么..."
+              className="flex-1 h-10 border-2 border-foreground px-3 text-sm bg-transparent focus:outline-none focus:border-[#FF6B35]"
+              disabled={loading}
+            />
+            <button
+              onClick={handleSend}
+              disabled={loading || !input.trim()}
+              className="w-10 h-10 bg-[#FF6B35] text-white border-2 border-foreground flex items-center justify-center disabled:opacity-50 cursor-pointer"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Daily Summary ── */
 function DailySummary() {
   const { dailySummary, goal, loadDailySummary, loadGoal } = useDietStore()
@@ -303,24 +453,79 @@ function DailySummary() {
         </div>
 
         {/* Progress ring */}
-        <div className="flex flex-col items-center">
-          <div className="relative w-36 h-36">
-            <svg viewBox="0 0 120 120" className="w-full h-full">
-              <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="10" />
-              <circle cx="60" cy="60" r="50" fill="none"
-                stroke={percent >= 100 ? '#ef4444' : '#FF6B35'}
-                strokeWidth="10" strokeLinecap="round"
-                strokeDasharray={circumference} strokeDashoffset={offset}
-                transform="rotate(-90 60 60)" className="transition-all duration-500" />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className="text-xl font-bold">{round(dailySummary.totalCalories)}</div>
-              <div className="text-xs text-[#6B5344]">/ {goalCal} kcal</div>
+        <div className="flex justify-center gap-8">
+          {/* Calorie ring */}
+          <div className="flex flex-col items-center">
+            <div className="relative w-28 h-28">
+              <svg viewBox="0 0 120 120" className="w-full h-full">
+                <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="10" />
+                <circle cx="60" cy="60" r="50" fill="none"
+                  stroke={percent >= 100 ? '#ef4444' : '#FF6B35'}
+                  strokeWidth="10" strokeLinecap="round"
+                  strokeDasharray={circumference} strokeDashoffset={offset}
+                  transform="rotate(-90 60 60)" className="transition-all duration-500" />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <div className="text-lg font-bold">{round(dailySummary.totalCalories)}</div>
+                <div className="text-[10px] text-[#6B5344]">/ {goalCal} kcal</div>
+              </div>
             </div>
+            <div className="text-xs text-[#6B5344] mt-2">热量</div>
           </div>
-          <div className="text-sm text-[#6B5344] mt-3">
-            {percent >= 100 ? '已达到目标' : `还需 ${round(goalCal - dailySummary.totalCalories)} kcal`}
-          </div>
+
+          {/* Macro ratio ring */}
+          {(() => {
+            const total = (dailySummary.totalProtein || 0) + (dailySummary.totalFat || 0) + (dailySummary.totalCarbs || 0)
+            const proteinPct = total > 0 ? (dailySummary.totalProtein || 0) / total : 0
+            const fatPct = total > 0 ? (dailySummary.totalFat || 0) / total : 0
+            const carbsPct = total > 0 ? (dailySummary.totalCarbs || 0) / total : 0
+            const r = 50
+            const c = 2 * Math.PI * r
+            const proteinLen = proteinPct * c
+            const fatLen = fatPct * c
+            const carbsLen = carbsPct * c
+            const proteinOffset = 0
+            const fatOffset = proteinLen
+            const carbsOffset = proteinLen + fatLen
+
+            return (
+              <div className="flex flex-col items-center">
+                <div className="relative w-28 h-28">
+                  <svg viewBox="0 0 120 120" className="w-full h-full">
+                    <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="10" />
+                    {total > 0 && <>
+                      <circle cx="60" cy="60" r="50" fill="none" stroke="#14b8a6" strokeWidth="10"
+                        strokeDasharray={`${proteinLen} ${c - proteinLen}`} strokeDashoffset={-proteinOffset}
+                        transform="rotate(-90 60 60)" className="transition-all duration-500" />
+                      <circle cx="60" cy="60" r="50" fill="none" stroke="#f59e0b" strokeWidth="10"
+                        strokeDasharray={`${fatLen} ${c - fatLen}`} strokeDashoffset={-fatOffset}
+                        transform="rotate(-90 60 60)" className="transition-all duration-500" />
+                      <circle cx="60" cy="60" r="50" fill="none" stroke="#6366f1" strokeWidth="10"
+                        strokeDasharray={`${carbsLen} ${c - carbsLen}`} strokeDashoffset={-carbsOffset}
+                        transform="rotate(-90 60 60)" className="transition-all duration-500" />
+                    </>}
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+                    <span className="text-[10px] font-medium text-[#14b8a6]">蛋白 {Math.round(proteinPct * 100)}%</span>
+                    <span className="text-[10px] font-medium text-[#f59e0b]">脂肪 {Math.round(fatPct * 100)}%</span>
+                    <span className="text-[10px] font-medium text-[#6366f1]">碳水 {Math.round(carbsPct * 100)}%</span>
+                  </div>
+                </div>
+                <div className="text-xs text-[#6B5344] mt-2">营养素比例</div>
+                <div className="flex gap-3 mt-1.5">
+                  <span className="flex items-center gap-1 text-[10px] text-[#6B5344]">
+                    <span className="w-2 h-2 rounded-full bg-[#14b8a6] inline-block" />蛋白
+                  </span>
+                  <span className="flex items-center gap-1 text-[10px] text-[#6B5344]">
+                    <span className="w-2 h-2 rounded-full bg-[#f59e0b] inline-block" />脂肪
+                  </span>
+                  <span className="flex items-center gap-1 text-[10px] text-[#6B5344]">
+                    <span className="w-2 h-2 rounded-full bg-[#6366f1] inline-block" />碳水
+                  </span>
+                </div>
+              </div>
+            )
+          })()}
         </div>
 
         {/* Meal distribution */}
@@ -506,11 +711,12 @@ export default function Diet() {
   const [activeTab, setActiveTab] = useState<TabKey>('record')
   const [modal, setModal] = useState<'create' | 'edit' | null>(null)
   const [editing, setEditing] = useState<DietRecord | null>(null)
+  const [showAssistant, setShowAssistant] = useState(false)
 
   return (
     <div className="max-w-2xl mx-auto">
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 overflow-x-auto">
+      <div className="flex items-center gap-1 mb-6">
         {tabs.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -523,6 +729,12 @@ export default function Diet() {
             {label}
           </button>
         ))}
+        <button
+          onClick={() => setShowAssistant(true)}
+          className="ml-auto w-10 h-10 bg-[#FF6B35] text-white border-2 border-foreground shadow-[4px_4px_0_0_#1a1a1a] hover:shadow-[2px_2px_0_0_#1a1a1a] hover:translate-x-[2px] hover:translate-y-[2px] transition-all flex items-center justify-center cursor-pointer shrink-0"
+        >
+          <Bot className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Content */}
@@ -540,6 +752,8 @@ export default function Diet() {
         {activeTab === 'trend' && <Trend />}
         {activeTab === 'goal' && <GoalSettings />}
       </div>
+
+      {showAssistant && <DietAssistantChat onClose={() => setShowAssistant(false)} />}
     </div>
   )
 }

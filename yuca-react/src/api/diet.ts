@@ -41,3 +41,7 @@ export const getWeeklyTrend = (date?: string) =>
 
 export const getMonthlyTrend = (date?: string) =>
   request.get<TrendData>('/diet/trend/monthly', { params: date ? { date } : {} })
+
+// 饮食助手
+export const chatWithDietAssistant = (content: string, sessionId?: string) =>
+  request.post<{ content: string }>('/diet/assistant/chat', { content, sessionId })
