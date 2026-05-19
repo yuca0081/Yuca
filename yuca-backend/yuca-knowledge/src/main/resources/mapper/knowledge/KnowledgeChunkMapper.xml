@@ -46,4 +46,19 @@
         LIMIT #{topK}
     </select>
 
+    <!-- 关键词全文搜索（基于 zhparser 中文分词） -->
+    <select id="searchByKeyword" resultMap="BaseResultMap">
+        SELECT
+            id, doc_id, kb_id, content, embedding, chunk_index, is_active,
+            created_at, updated_at, deleted
+        FROM knowledge_chunk,
+             plainto_tsquery('chinese', #{query}) query
+        WHERE deleted = FALSE
+          AND is_active = TRUE
+          AND kb_id = #{kbId}
+          AND fts_tokens @@ query
+        ORDER BY ts_rank_cd(fts_tokens, query) DESC
+        LIMIT #{topK}
+    </select>
+
 </mapper>

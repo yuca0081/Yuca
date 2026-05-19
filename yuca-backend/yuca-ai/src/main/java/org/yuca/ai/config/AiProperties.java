@@ -12,12 +12,19 @@ public class AiProperties {
 
     private ProviderConfig dashscope = new ProviderConfig();
     private ProviderConfig openai = new ProviderConfig();
+    private EmbeddingConfig embedding = new EmbeddingConfig();
 
     @Data
     public static class ProviderConfig {
         private String baseUrl;
         private String modelName;
         private String apiKey;
+    }
+
+    @Data
+    public static class EmbeddingConfig {
+        private String modelName = "text-embedding-v3";
+        private int dimension = 1024;
     }
 
     @Data

@@ -5,6 +5,7 @@ import { MEAL_TYPE_OPTIONS } from '@/types/diet'
 import type { DietRecord, CreateRecordRequest, UpdateRecordRequest } from '@/types/diet'
 import { chatWithDietAssistant } from '@/api/diet'
 import { UtensilsCrossed, BarChart3, TrendingUp, Target, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, X, Bot, Send, User } from 'lucide-react'
+import { ComposedChart, Area, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 
 type TabKey = 'record' | 'daily' | 'trend' | 'goal'
 
@@ -550,60 +551,162 @@ function DailySummary() {
   )
 }
 
-/* ── Trend (P2 skeleton) ── */
+/* ── Trend ── */
 function Trend() {
   const [mode, setMode] = useState<'weekly' | 'monthly'>('weekly')
-  const { weeklyTrend, monthlyTrend, loadWeeklyTrend, loadMonthlyTrend } = useDietStore()
+  const { weeklyTrend, monthlyTrend, goal, loadWeeklyTrend, loadMonthlyTrend } = useDietStore()
   const data = mode === 'weekly' ? weeklyTrend : monthlyTrend
+
+  // period base date for navigation
+  const [periodBase, setPeriodBase] = useState<string | undefined>(undefined)
 
   useEffect(() => { loadWeeklyTrend() }, [])
 
   const switchMode = (m: 'weekly' | 'monthly') => {
     setMode(m)
+    setPeriodBase(undefined)
     if (m === 'weekly') loadWeeklyTrend()
     else loadMonthlyTrend()
   }
 
+  const navigate = (delta: number) => {
+    const base = periodBase ? new Date(periodBase + 'T00:00:00') : new Date()
+    if (mode === 'weekly') base.setDate(base.getDate() + delta * 7)
+    else base.setMonth(base.getMonth() + delta)
+    const next = formatTs(base.getTime())
+    setPeriodBase(next)
+    if (mode === 'weekly') loadWeeklyTrend(next)
+    else loadMonthlyTrend(next)
+  }
+
+  // format period label
+  const periodLabel = (() => {
+    if (!data?.items?.length) return ''
+    const first = data.items[0].date
+    const last = data.items[data.items.length - 1].date
+    if (mode === 'weekly') {
+      const f = new Date(first + 'T00:00:00')
+      const l = new Date(last + 'T00:00:00')
+      return `${f.getMonth() + 1}/${f.getDate()} — ${l.getMonth() + 1}/${l.getDate()}`
+    }
+    const l = new Date(last + 'T00:00:00')
+    return `${l.getFullYear()}年${l.getMonth() + 1}月`
+  })()
+
+  // chart data
+  const chartData = data?.items?.map((d) => ({
+    date: (() => { const dt = new Date(d.date + 'T00:00:00'); return `${dt.getMonth() + 1}/${dt.getDate()}` })(),
+    calories: Math.round(d.calories),
+    protein: Math.round(d.protein),
+    fat: Math.round(d.fat),
+    carbs: Math.round(d.carbs),
+  })) ?? []
+
+  const goalCal = goal?.dailyCalories ?? 2000
+
   return (
     <div>
       <h3 className="font-bold text-lg mb-4">趋势统计</h3>
-      <div className="flex gap-2 mb-6">
-        <button onClick={() => switchMode('weekly')}
-          className={`px-5 py-2 text-sm border-2 border-foreground cursor-pointer transition-colors ${mode === 'weekly' ? 'bg-[#FF6B35] text-white' : 'hover:bg-[#FFF5E6]'}`}>
-          周视图
-        </button>
-        <button onClick={() => switchMode('monthly')}
-          className={`px-5 py-2 text-sm border-2 border-foreground cursor-pointer transition-colors ${mode === 'monthly' ? 'bg-[#FF6B35] text-white' : 'hover:bg-[#FFF5E6]'}`}>
-          月视图
-        </button>
-      </div>
 
-      <div className="text-center py-10 text-[#6B5344]">
-        <p>趋势图表功能将在后续版本中上线</p>
-        <p className="text-sm mt-1 opacity-70">将使用 ECharts 展示热量趋势折线图和日历视图</p>
-      </div>
-
-      {data && (
-        <div className="grid grid-cols-2 gap-4 mt-4">
-          <div className="block-card p-4 text-center">
-            <div className="text-xs text-[#6B5344] mb-1">日均热量</div>
-            <div className="text-lg font-bold">{round(data.averageCalories)} kcal</div>
-          </div>
-          <div className="block-card p-4 text-center">
-            <div className="text-xs text-[#6B5344] mb-1">最高</div>
-            <div className="text-lg font-bold">{round(data.maxCalories)} kcal</div>
-          </div>
-          <div className="block-card p-4 text-center">
-            <div className="text-xs text-[#6B5344] mb-1">最低</div>
-            <div className="text-lg font-bold">{round(data.minCalories)} kcal</div>
-          </div>
-          {data.targetDays !== undefined && (
-            <div className="block-card p-4 text-center">
-              <div className="text-xs text-[#6B5344] mb-1">达标天数</div>
-              <div className="text-lg font-bold">{data.targetDays} 天</div>
-            </div>
-          )}
+      {/* Mode toggle + period nav */}
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex gap-2">
+          <button onClick={() => switchMode('weekly')}
+            className={`px-5 py-2 text-sm border-2 border-foreground cursor-pointer transition-colors ${mode === 'weekly' ? 'bg-[#FF6B35] text-white' : 'hover:bg-[#FFF5E6]'}`}>
+            周视图
+          </button>
+          <button onClick={() => switchMode('monthly')}
+            className={`px-5 py-2 text-sm border-2 border-foreground cursor-pointer transition-colors ${mode === 'monthly' ? 'bg-[#FF6B35] text-white' : 'hover:bg-[#FFF5E6]'}`}>
+            月视图
+          </button>
         </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => navigate(-1)} className="p-1.5 border-2 border-foreground hover:bg-[#FF6B35] hover:text-white transition-colors cursor-pointer">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="text-sm font-medium min-w-[120px] text-center">{periodLabel}</span>
+          <button onClick={() => navigate(1)} className="p-1.5 border-2 border-foreground hover:bg-[#FF6B35] hover:text-white transition-colors cursor-pointer">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {data ? (
+        <>
+          {/* Calorie trend chart */}
+          <div className="block-card p-4 mb-5">
+            <h4 className="text-sm font-semibold mb-3">热量趋势</h4>
+            <ResponsiveContainer width="100%" height={220}>
+              <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip
+                  contentStyle={{ fontSize: 12, border: '2px solid #1a1a1a', borderRadius: 0, boxShadow: '3px 3px 0 0 #1a1a1a' }}
+                  formatter={(v: number) => [`${v} kcal`, '热量']}
+                />
+                <Bar dataKey="calories" fill="#FF6B35" radius={[2, 2, 0, 0]} barSize={mode === 'weekly' ? 24 : 8} />
+                <ReferenceLine y={goalCal} stroke="#14b8a6" strokeDasharray="6 3" strokeWidth={2} />
+                <Line type="monotone" dataKey="calories" stroke="#FF6B35" strokeWidth={2} dot={false} />
+              </ComposedChart>
+            </ResponsiveContainer>
+            <div className="flex items-center gap-4 mt-2 text-[10px] text-[#6B5344]">
+              <span className="flex items-center gap-1"><span className="w-3 h-2 bg-[#FF6B35] inline-block" />实际热量</span>
+              <span className="flex items-center gap-1"><span className="w-3 border-t-2 border-dashed border-[#14b8a6] inline-block" />目标 {goalCal} kcal</span>
+            </div>
+          </div>
+
+          {/* Macronutrient stacked area chart */}
+          <div className="block-card p-4 mb-5">
+            <h4 className="text-sm font-semibold mb-3">营养素构成</h4>
+            <ResponsiveContainer width="100%" height={180}>
+              <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip
+                  contentStyle={{ fontSize: 12, border: '2px solid #1a1a1a', borderRadius: 0, boxShadow: '3px 3px 0 0 #1a1a1a' }}
+                  formatter={(v: number, name: string) => {
+                    const labels: Record<string, string> = { protein: '蛋白质', fat: '脂肪', carbs: '碳水' }
+                    return [`${v}g`, labels[name] ?? name]
+                  }}
+                />
+                <Area type="monotone" dataKey="carbs" stackId="1" stroke="#6366f1" fill="#6366f1" fillOpacity={0.6} />
+                <Area type="monotone" dataKey="fat" stackId="1" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.6} />
+                <Area type="monotone" dataKey="protein" stackId="1" stroke="#14b8a6" fill="#14b8a6" fillOpacity={0.6} />
+              </ComposedChart>
+            </ResponsiveContainer>
+            <div className="flex items-center gap-4 mt-2 text-[10px] text-[#6B5344]">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#14b8a6] inline-block" />蛋白质</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#f59e0b] inline-block" />脂肪</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#6366f1] inline-block" />碳水</span>
+            </div>
+          </div>
+
+          {/* Stats cards */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="block-card p-4 text-center">
+              <div className="text-xs text-[#6B5344] mb-1">日均热量</div>
+              <div className="text-lg font-bold">{round(data.averageCalories)} kcal</div>
+            </div>
+            <div className="block-card p-4 text-center">
+              <div className="text-xs text-[#6B5344] mb-1">最高</div>
+              <div className="text-lg font-bold">{round(data.maxCalories)} kcal</div>
+            </div>
+            <div className="block-card p-4 text-center">
+              <div className="text-xs text-[#6B5344] mb-1">最低</div>
+              <div className="text-lg font-bold">{round(data.minCalories)} kcal</div>
+            </div>
+            {data.targetDays !== undefined && (
+              <div className="block-card p-4 text-center">
+                <div className="text-xs text-[#6B5344] mb-1">达标天数</div>
+                <div className="text-lg font-bold">{data.targetDays} 天</div>
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="text-center py-10 text-[#6B5344]">加载中...</div>
       )}
     </div>
   )

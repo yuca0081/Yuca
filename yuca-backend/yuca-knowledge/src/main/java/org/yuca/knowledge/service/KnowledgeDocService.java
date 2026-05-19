@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.yuca.ai.embedding.EmbeddingService;
 import org.yuca.common.exception.BusinessException;
 import org.yuca.common.response.ErrorCode;
 import org.yuca.infrastructure.storage.dto.UploadResult;
@@ -53,6 +54,9 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
 
     @Autowired
     private FileStorageService fileStorageService;
+
+    @Autowired
+    private EmbeddingService embeddingService;
 
     private static final long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
@@ -233,19 +237,15 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
 
     /**
      * 保存文档切片
-     * 使用 LangChain4j 生成嵌入向量
+     * 使用 DashScope text-embedding-v3 生成嵌入向量
      */
     private void saveChunks(Long docId, Long kbId, List<TextSegment> chunks) {
-        // 提取文本内容
         List<String> texts = chunks.stream()
-                .map(doc -> {
-                    return doc.text();
-                })
+                .map(TextSegment::text)
                 .collect(Collectors.toList());
 
-        // TODO: 使用 LangChain4j 批量生成嵌入向量
-        // 注意：需要在 LangChain4jService 中添加嵌入功能
-        // 目前暂时使用空向量，后续需要实现
+        // 批量生成嵌入向量
+        List<Double[]> embeddings = embeddingService.embedBatchAsDoubleArrays(texts);
 
         // 保存切片
         for (int i = 0; i < chunks.size(); i++) {
@@ -253,10 +253,7 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
             chunk.setDocId(docId);
             chunk.setKbId(kbId);
             chunk.setContent(chunks.get(i).text());
-
-            // TODO: 生成实际的嵌入向量
-            // chunk.setEmbedding(embeddings.get(i));
-
+            chunk.setEmbedding(embeddings.get(i));
             chunk.setChunkIndex(i);
             chunk.setIsActive(true);
 

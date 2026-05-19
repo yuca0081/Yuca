@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.yuca.diet.dto.request.CreateRecordRequest;
+import org.yuca.diet.dto.request.UpdateRecordRequest;
 import org.yuca.diet.dto.response.DailySummaryResponse;
 import org.yuca.diet.dto.response.DietGoalResponse;
 import org.yuca.diet.dto.response.DietRecordResponse;
@@ -57,6 +58,48 @@ public class DietTool {
         }
     }
 
+    @Tool("修改一条饮食记录。id为记录ID（必填），其余参数均为可选，只传需要修改的字段：recordDate为日期(YYYY-MM-DD)，mealType为餐次(1=早餐,2=午餐,3=晚餐,4=加餐)，foodName为食物名称，amount为食用量，unit为单位，calories为热量(kcal)，protein为蛋白质(g)，fat为脂肪(g)，carbs为碳水(g)，remark为备注")
+    public String updateDietRecord(long id,
+                                   String recordDate, Integer mealType,
+                                   String foodName, Double amount, String unit,
+                                   Double calories, Double protein, Double fat, Double carbs,
+                                   String remark) {
+        long userId = SecurityUtils.getCurrentUserId();
+        try {
+            UpdateRecordRequest request = new UpdateRecordRequest();
+            if (recordDate != null) request.setRecordDate(LocalDate.parse(recordDate));
+            if (mealType != null) request.setMealType(mealType);
+            if (foodName != null) request.setFoodName(foodName);
+            if (amount != null) request.setAmount(BigDecimal.valueOf(amount));
+            if (unit != null) request.setUnit(unit);
+            if (calories != null) request.setCalories(BigDecimal.valueOf(calories));
+            if (protein != null) request.setProtein(BigDecimal.valueOf(protein));
+            if (fat != null) request.setFat(BigDecimal.valueOf(fat));
+            if (carbs != null) request.setCarbs(BigDecimal.valueOf(carbs));
+            if (remark != null) request.setRemark(remark);
+
+            recordService.updateRecord(id, request, userId);
+            log.info("AI工具更新饮食记录成功: userId={}, recordId={}", userId, id);
+            return "修改成功，记录ID: " + id;
+        } catch (Exception e) {
+            log.error("AI工具更新饮食记录失败: userId={}, recordId={}", userId, id, e);
+            return "修改失败: " + e.getMessage();
+        }
+    }
+
+    @Tool("删除一条饮食记录。id为要删除的记录ID")
+    public String deleteDietRecord(long id) {
+        long userId = SecurityUtils.getCurrentUserId();
+        try {
+            recordService.deleteRecord(id, userId);
+            log.info("AI工具删除饮食记录成功: userId={}, recordId={}", userId, id);
+            return "删除成功，记录ID: " + id;
+        } catch (Exception e) {
+            log.error("AI工具删除饮食记录失败: userId={}, recordId={}", userId, id, e);
+            return "删除失败: " + e.getMessage();
+        }
+    }
+
     @Tool("查询指定日期的饮食记录列表。date为日期(YYYY-MM-DD)")
     public String queryDietRecords(String date) {
         long userId = SecurityUtils.getCurrentUserId();
@@ -66,15 +109,22 @@ public class DietTool {
                 return date + " 没有饮食记录";
             }
             return records.stream()
-                    .map(r -> String.format("%s | %s | %s %.0f%s | 热量:%.0fkcal 蛋白:%.1fg 脂肪:%.1fg 碳水:%.1fg",
-                            r.getMealTypeLabel(),
-                            r.getFoodName(),
-                            r.getAmount().toPlainString(),
-                            r.getUnit(),
-                            r.getCalories() != null ? r.getCalories().doubleValue() : 0,
-                            r.getProtein() != null ? r.getProtein().doubleValue() : 0,
-                            r.getFat() != null ? r.getFat().doubleValue() : 0,
-                            r.getCarbs() != null ? r.getCarbs().doubleValue() : 0))
+                    .map(r -> {
+                        String base = String.format("[ID:%d] %s | %s | %s %s | 热量:%.0fkcal 蛋白:%.1fg 脂肪:%.1fg 碳水:%.1fg",
+                                r.getId(),
+                                r.getMealTypeLabel(),
+                                r.getFoodName(),
+                                r.getAmount().toPlainString(),
+                                r.getUnit(),
+                                r.getCalories() != null ? r.getCalories().doubleValue() : 0,
+                                r.getProtein() != null ? r.getProtein().doubleValue() : 0,
+                                r.getFat() != null ? r.getFat().doubleValue() : 0,
+                                r.getCarbs() != null ? r.getCarbs().doubleValue() : 0);
+                        if (r.getRemark() != null && !r.getRemark().isBlank()) {
+                            base += " | 备注:" + r.getRemark();
+                        }
+                        return base;
+                    })
                     .collect(Collectors.joining("\n"));
         } catch (Exception e) {
             log.error("AI工具查询饮食记录失败: userId={}", userId, e);

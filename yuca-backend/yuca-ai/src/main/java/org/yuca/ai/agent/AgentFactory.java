@@ -8,14 +8,17 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.yuca.ai.agent.enhancer.ChatEnhancer;
 import org.yuca.ai.agent.enhancer.HistoryEnhancer;
+import org.yuca.ai.agent.enhancer.RagEnhancer;
 import org.yuca.ai.agent.enhancer.SystemPromptEnhancer;
 import org.yuca.ai.config.AiProperties;
 import org.yuca.ai.history.ChatHistoryStore;
+import org.yuca.ai.retrieval.RetrievalService;
 import org.yuca.ai.skill.SkillRegistry;
 import org.yuca.ai.tool.Calculator;
 import org.yuca.ai.tool.SkillTool;
 import org.yuca.ai.tool.ToolExtractor;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -30,6 +33,7 @@ public class AgentFactory {
     private final AiProperties aiProperties;
     private final SkillRegistry skillRegistry;
     private final SkillTool skillTool;
+    private final RetrievalService retrievalService;
 
     /**
      * 创建简单 Agent（无历史、无工具、无增强器）
@@ -57,11 +61,25 @@ public class AgentFactory {
     }
 
     public Agent defaultAgent(ChatContext context) {
+        return defaultAgent(context, null);
+    }
+
+    /**
+     * 创建默认 Agent（带历史记忆、系统提示、工具调用）
+     * 可选启用 RAG 知识库检索
+     *
+     * @param context 请求上下文
+     * @param kbId    知识库ID，为 null 时不启用 RAG
+     */
+    public Agent defaultAgent(ChatContext context, Long kbId) {
         String systemPrompt = buildSystemPrompt();
-        List<ChatEnhancer> enhancers = List.of(
-                new SystemPromptEnhancer(systemPrompt),
-                new HistoryEnhancer(historyStore, 50)
-        );
+
+        List<ChatEnhancer> enhancers = new ArrayList<>();
+        if (kbId != null) {
+            enhancers.add(new RagEnhancer(retrievalService, kbId, 5));
+        }
+        enhancers.add(new SystemPromptEnhancer(systemPrompt));
+        enhancers.add(new HistoryEnhancer(historyStore, 50));
 
         // 从工具对象提取 ToolSpecification 和 ToolExecutor
         ToolExtractor toolExtractor = new ToolExtractor(List.of(new Calculator(), skillTool));

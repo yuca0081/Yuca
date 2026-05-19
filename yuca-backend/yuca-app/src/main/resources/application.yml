@@ -112,6 +112,9 @@ yuca:
       base-url: https://api.deepseek.com
       model-name: deepseek-chat
       api-key: sk-46aaad92e53e4cfb8a165e99daaf17bc
+    embedding:
+      model-name: text-embedding-v3
+      dimension: 1024
 
 # Swagger/OpenAPI配置
 springdoc:

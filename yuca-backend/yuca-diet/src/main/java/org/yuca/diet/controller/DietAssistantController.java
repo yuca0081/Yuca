@@ -1,7 +1,9 @@
 package org.yuca.diet.controller;
 
+import dev.langchain4j.community.model.dashscope.QwenChatRequestParameters;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -35,9 +37,10 @@ public class DietAssistantController {
         ChatContext context = new ChatContext();
         context.setSessionId(request.getSessionId());
         context.setUserId(userId);
-
+        QwenChatRequestParameters build = QwenChatRequestParameters.builder().enableThinking(true).build();
         ChatRequest chatRequest = ChatRequest.builder()
                 .messages(List.of(new UserMessage(request.getContent())))
+                .parameters(build)
                 .build();
 
         ChatResponse response = dietAgentFactory.createDietAgent(context)

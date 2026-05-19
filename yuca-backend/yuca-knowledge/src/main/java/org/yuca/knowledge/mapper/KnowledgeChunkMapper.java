@@ -41,4 +41,16 @@ public interface KnowledgeChunkMapper extends BaseMapper<KnowledgeChunk> {
     List<KnowledgeChunk> searchSimilarGlobal(@Param("queryEmbedding") String queryEmbedding,
                                               @Param("topK") Integer topK,
                                               @Param("threshold") Double threshold);
+
+    /**
+     * 关键词全文搜索
+     *
+     * @param kbId  知识库ID
+     * @param query 查询关键词
+     * @param topK  返回结果数量
+     * @return 匹配的切片列表
+     */
+    List<KnowledgeChunk> searchByKeyword(@Param("kbId") Long kbId,
+                                          @Param("query") String query,
+                                          @Param("topK") Integer topK);
 }
