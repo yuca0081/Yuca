@@ -8,7 +8,6 @@ import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import org.yuca.infrastructure.handle.JsonbTypeHandler;
-
 import java.time.LocalDateTime;
 
 /**

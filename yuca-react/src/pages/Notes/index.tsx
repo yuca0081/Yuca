@@ -3,14 +3,17 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Plus, FileText, Search, ChevronDown, BookOpen, RefreshCw } from 'lucide-react'
+import { Plus, FileText, Search, ChevronDown, BookOpen, RefreshCw, Pencil, CalendarDays, Loader2 } from 'lucide-react'
 import { NoteTree } from './NoteTree'
 import { NoteEditor } from './NoteEditor'
 import { CreateNoteBookDialog } from './CreateNoteBookDialog'
 import { CreateNoteItemDialog } from './CreateNoteItemDialog'
+import { NoteAiSidebar } from './NoteAiSidebar'
+import { NoteAiToolbar } from './NoteAiToolbar'
+
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useAutoSave } from '@/hooks/useAutoSave'
-import { getNoteBooks, getNoteTree, getNoteItem, createNoteItem, updateNoteItem, deleteNoteItem, createNoteBook, deleteNoteBook } from '@/api/note'
+import { getNoteBooks, getNoteTree, getNoteItem, createNoteItem, updateNoteItem, deleteNoteItem, createNoteBook, deleteNoteBook, updateNoteBook } from '@/api/note'
 import type { NoteBook, TreeNode, NoteItem } from '@/types'
 
 export default function Notes() {
@@ -41,6 +44,13 @@ export default function Notes() {
   const [renameTarget, setRenameTarget] = useState<TreeNode | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [renameLoading, setRenameLoading] = useState(false)
+  const [editBookTarget, setEditBookTarget] = useState<NoteBook | null>(null)
+  const [editBookName, setEditBookName] = useState('')
+  const [editBookLoading, setEditBookLoading] = useState(false)
+  const [diaryLoading, setDiaryLoading] = useState(false)
+
+  // AI sidebar state
+  const [showAiSidebar, setShowAiSidebar] = useState(false)
 
   const activeBook = noteBooks.find(b => b.id === activeBookId)
 
@@ -240,6 +250,95 @@ export default function Notes() {
     }
   }
 
+  // Edit notebook
+  const handleEditBook = (book: NoteBook) => {
+    setEditBookTarget(book)
+    setEditBookName(book.name)
+    setBookMenuOpen(false)
+  }
+
+  const handleConfirmEditBook = async () => {
+    if (!editBookTarget || !editBookName.trim()) return
+    setEditBookLoading(true)
+    try {
+      await updateNoteBook(editBookTarget.id, { name: editBookName.trim() })
+      setNoteBooks(prev => prev.map(b => b.id === editBookTarget!.id ? { ...b, name: editBookName.trim() } : b))
+      setEditBookTarget(null)
+    } finally {
+      setEditBookLoading(false)
+    }
+  }
+
+  // Quick diary
+  const handleQuickDiary = async () => {
+    setDiaryLoading(true)
+    try {
+      const now = new Date()
+      const year = now.getFullYear().toString()
+      const month = (now.getMonth() + 1).toString().padStart(2, '0')
+      const dayTitle = `${year}年${now.getMonth() + 1}月${now.getDate()}日`
+
+      // 1. Find or create "日记" notebook
+      let diaryBook = noteBooks.find(b => b.name === '日记')
+      if (!diaryBook) {
+        const id = await createNoteBook({ name: '日记' })
+        await loadNoteBooks()
+        diaryBook = { id, name: '日记' } as NoteBook
+      }
+      setActiveBookId(diaryBook.id)
+
+      // 2. Load tree
+      const res = await getNoteTree(diaryBook.id)
+      let tree: TreeNode[] = res.nodes || []
+
+      const findChild = (nodes: TreeNode[], title: string) =>
+        nodes.find(n => n.title === title)
+
+      // 3. Find or create year folder
+      let yearNode = findChild(tree, year)
+      if (!yearNode) {
+        await createNoteItem({ bookId: diaryBook.id, parentId: null, type: 'FOLDER', title: year })
+        const updated = await getNoteTree(diaryBook.id)
+        tree = updated.nodes || []
+        yearNode = findChild(tree, year)!
+      }
+
+      // 4. Find or create month folder
+      let monthNode = findChild(yearNode.children || [], month)
+      if (!monthNode) {
+        await createNoteItem({ bookId: diaryBook.id, parentId: yearNode.id, type: 'FOLDER', title: month })
+        const updated = await getNoteTree(diaryBook.id)
+        tree = updated.nodes || []
+        yearNode = findChild(tree, year)!
+        monthNode = findChild(yearNode.children || [], month)!
+      }
+
+      // 5. Find or create day document
+      let docNode = findChild(monthNode.children || [], dayTitle)
+      if (!docNode) {
+        await createNoteItem({ bookId: diaryBook.id, parentId: monthNode.id, type: 'DOCUMENT', title: dayTitle })
+        const updated = await getNoteTree(diaryBook.id)
+        tree = updated.nodes || []
+        yearNode = findChild(tree, year)!
+        monthNode = findChild(yearNode.children || [], month)!
+        docNode = findChild(monthNode.children || [], dayTitle)!
+      }
+
+      // 6. Refresh tree and open document
+      setTreeNodes(tree)
+      setExpandedIds(new Set([yearNode.id, monthNode.id]))
+      setSelectedId(docNode.id)
+      const item = await getNoteItem(docNode.id)
+      setSelectedItem(item)
+      setTitle(item.title || '')
+      setContent(item.content || '')
+    } catch (err) {
+      console.error('Failed to create/open diary:', err)
+    } finally {
+      setDiaryLoading(false)
+    }
+  }
+
   // Filter tree by search
   const filterTree = (nodes: TreeNode[], query: string): TreeNode[] => {
     if (!query) return nodes
@@ -260,71 +359,61 @@ export default function Notes() {
       {/* Sidebar */}
       <aside className="sidebar w-64 shrink-0 overflow-hidden flex flex-col">
         <div className="p-4">
-          <div className="flex items-center justify-between mb-4">
-            {/* Notebook selector */}
-            <div className="flex-1 mr-2 relative">
-              <button
-                onClick={() => setBookMenuOpen(!bookMenuOpen)}
-                className="w-full flex items-center justify-between px-2 py-1.5 text-sm font-bold bg-white border-2 border-foreground cursor-pointer hover:bg-[#FFF5E6] transition-colors"
-              >
-                <span className="truncate">{activeBook?.name || '选择笔记本'}</span>
-                <ChevronDown className="w-4 h-4 shrink-0" />
-              </button>
-              {bookMenuOpen && (
+          {/* Notebook selector - full width */}
+          <div className="relative mb-2">
+            <button
+              onClick={() => setBookMenuOpen(!bookMenuOpen)}
+              className="w-full flex items-center justify-between px-2 py-1.5 text-sm font-bold bg-white border-2 border-foreground cursor-pointer hover:bg-[#FFF5E6] transition-colors"
+            >
+              <span className="truncate">{activeBook?.name || '选择笔记本'}</span>
+              <ChevronDown className="w-4 h-4 shrink-0" />
+            </button>
+            {bookMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-9" onClick={() => setBookMenuOpen(false)} />
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-foreground shadow-[4px_4px_0_#2C1810] z-10 max-h-48 overflow-y-auto">
                   {noteBooks.map(book => (
-                    <div
-                      key={book.id}
-                      className={`px-3 py-2 text-sm cursor-pointer transition-colors flex items-center justify-between group ${
-                        activeBookId === book.id ? 'bg-[#FF6B35] text-white font-medium' : 'text-[#6B5344] hover:bg-[#FFF5E6]'
-                      }`}
-                      onClick={() => {
-                        setActiveBookId(book.id)
-                        setBookMenuOpen(false)
-                      }}
-                    >
-                      <BookOpen className="w-3.5 h-3.5 mr-2 shrink-0" />
-                      <span className="flex-1 truncate">{book.name}</span>
+                  <div
+                    key={book.id}
+                    className={`px-3 py-2 text-sm cursor-pointer transition-colors flex items-center justify-between group ${
+                      activeBookId === book.id ? 'bg-[#FF6B35] text-white font-medium' : 'text-[#6B5344] hover:bg-[#FFF5E6]'
+                    }`}
+                    onClick={() => {
+                      setActiveBookId(book.id)
+                      setBookMenuOpen(false)
+                    }}
+                  >
+                    <BookOpen className="w-3.5 h-3.5 mr-2 shrink-0" />
+                    <span className="flex-1 truncate">{book.name}</span>
+                    <div className="opacity-0 group-hover:opacity-100 flex gap-0.5 ml-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEditBook(book)
+                        }}
+                        className="p-0.5 hover:text-blue-600 cursor-pointer"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
                           setDeleteTarget({ type: 'book', book })
                           setBookMenuOpen(false)
                         }}
-                        className="opacity-0 group-hover:opacity-100 text-red-500 cursor-pointer ml-1"
+                        className="p-0.5 hover:text-red-600 cursor-pointer"
                       >
                         &times;
                       </button>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setCreateBookOpen(true)}
-                className="p-1.5 cursor-pointer hover:text-[#FF6B35] transition-colors"
-                title="新建笔记本"
-              >
-                <BookOpen className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setCreateItemOpen(true)}
-                className="p-1.5 cursor-pointer hover:text-[#FF6B35] transition-colors"
-                title="新建条目"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => activeBookId && loadTree(activeBookId)}
-                className="p-1.5 cursor-pointer hover:text-[#FF6B35] transition-colors"
-                title="刷新"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </button>
-            </div>
+                  </div>
+                ))}
+              </div>
+              </>
+            )}
           </div>
-          <div className="relative">
+          {/* Search bar */}
+          <div className="relative mb-2">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6B5344]" />
             <Input
               value={search}
@@ -332,6 +421,38 @@ export default function Notes() {
               placeholder="搜索笔记..."
               className="pl-8 h-9 text-xs bg-white border-2 border-foreground focus:border-[#FF6B35] rounded-none shadow-none"
             />
+          </div>
+          {/* Action buttons row */}
+          <div className="flex gap-1">
+            <button
+              onClick={() => setCreateBookOpen(true)}
+              className="p-1.5 cursor-pointer hover:text-[#FF6B35] transition-colors"
+              title="新建笔记本"
+            >
+              <BookOpen className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setCreateItemOpen(true)}
+              className="p-1.5 cursor-pointer hover:text-[#FF6B35] transition-colors"
+              title="新建条目"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => activeBookId && loadTree(activeBookId)}
+              className="p-1.5 cursor-pointer hover:text-[#FF6B35] transition-colors"
+              title="刷新"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleQuickDiary}
+              disabled={diaryLoading}
+              className="p-1.5 cursor-pointer hover:text-[#FF6B35] transition-colors disabled:opacity-50"
+              title="写日记"
+            >
+              {diaryLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarDays className="w-4 h-4" />}
+            </button>
           </div>
         </div>
         <div className="border-t-2 border-foreground" />
@@ -361,15 +482,46 @@ export default function Notes() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 block-card overflow-hidden flex flex-col">
+      <main className="flex-1 block-card overflow-hidden flex">
         {selectedItem ? (
-          <NoteEditor
-            title={title}
-            content={content}
-            onTitleChange={setTitle}
-            onContentChange={setContent}
-            saving={saving}
-          />
+          <>
+            {/* Editor */}
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <NoteEditor
+                title={title}
+                content={content}
+                onTitleChange={setTitle}
+                onContentChange={setContent}
+                saving={saving}
+              />
+            </div>
+
+            {/* Vertical AI Toolbar */}
+            <NoteAiToolbar
+              noteItemId={selectedId}
+              title={title}
+              content={content}
+              onApplyResult={(result, action) => {
+                if (action === 'APPEND') {
+                  setContent(prev => prev + '\n\n' + result)
+                } else {
+                  setContent(result)
+                }
+              }}
+              onToggleSidebar={() => setShowAiSidebar(prev => !prev)}
+              showSidebar={showAiSidebar}
+            />
+
+            {/* AI Chat Sidebar */}
+            {showAiSidebar && (
+              <NoteAiSidebar
+                onClose={() => setShowAiSidebar(false)}
+                noteItemId={selectedId}
+                title={title}
+                content={content}
+              />
+            )}
+          </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-[#6B5344]">
             <div className="text-center">
@@ -426,6 +578,31 @@ export default function Notes() {
             </Button>
             <Button onClick={handleConfirmRename} disabled={renameLoading || !renameValue.trim()} className="rounded-none bg-[#FF6B35] hover:bg-[#E55A2B] text-white">
               {renameLoading ? '保存中...' : '确定'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Notebook Dialog */}
+      <Dialog open={!!editBookTarget} onOpenChange={(open) => !open && setEditBookTarget(null)}>
+        <DialogContent className="sm:max-w-md border-2 border-foreground shadow-[4px_4px_0_#2C1810] rounded-none">
+          <DialogHeader>
+            <DialogTitle>编辑笔记本</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={editBookName}
+            onChange={(e) => setEditBookName(e.target.value)}
+            placeholder="笔记本名称"
+            className="border-2 border-foreground focus:border-[#FF6B35] rounded-none shadow-none"
+            onKeyDown={(e) => e.key === 'Enter' && handleConfirmEditBook()}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditBookTarget(null)} disabled={editBookLoading} className="rounded-none">
+              取消
+            </Button>
+            <Button onClick={handleConfirmEditBook} disabled={editBookLoading || !editBookName.trim()} className="rounded-none bg-[#FF6B35] hover:bg-[#E55A2B] text-white">
+              {editBookLoading ? '保存中...' : '保存'}
             </Button>
           </DialogFooter>
         </DialogContent>

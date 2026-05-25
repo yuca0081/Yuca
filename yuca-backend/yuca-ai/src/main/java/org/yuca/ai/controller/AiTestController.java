@@ -1,24 +1,19 @@
 package org.yuca.ai.controller;
 
 import dev.langchain4j.community.model.dashscope.QwenChatModel;
-import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.community.model.zhipu.ZhipuAiChatModel;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.request.ChatRequest;
-import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.model.chat.response.ChatResponse;
-import dev.langchain4j.model.openai.OpenAiChatModel;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.yuca.ai.agent.Agent;
 import org.yuca.ai.agent.AgentFactory;
 import org.yuca.ai.agent.ChatContext;
-import org.yuca.ai.client.AiClient;
-import org.yuca.ai.config.AiProperties;
 import org.yuca.common.response.Result;
 
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * AI 功能测试接口（Postman 调试用）

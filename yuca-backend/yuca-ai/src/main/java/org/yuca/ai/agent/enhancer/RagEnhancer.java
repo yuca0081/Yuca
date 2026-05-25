@@ -33,7 +33,7 @@ public class RagEnhancer implements ChatEnhancer {
 
     @Override
     public int order() {
-        return -10;
+        return 1;
     }
 
     @Override
@@ -51,7 +51,7 @@ public class RagEnhancer implements ChatEnhancer {
 
         String ragContext = buildRagContext(chunks);
         List<ChatMessage> messages = new ArrayList<>();
-        messages.add(SystemMessage.from(ragContext));
+        messages.add(UserMessage.from(ragContext));
         messages.addAll(request.messages());
 
         log.debug("RagEnhancer: 检索到 {} 条相关内容, query={}", chunks.size(), query);

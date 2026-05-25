@@ -106,7 +106,7 @@ yuca:
   ai:
     dashscope:
       base-url: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation
-      model-name: qwen3.5-flash
+      model-name: glm-5.1
       api-key: sk-4632c16e41c64e738d3b4147aa58581f
     openai:
       base-url: https://api.deepseek.com

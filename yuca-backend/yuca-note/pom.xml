@@ -26,6 +26,12 @@
             <artifactId>yuca-infrastructure</artifactId>
         </dependency>
 
+        <!-- yuca-ai -->
+        <dependency>
+            <groupId>org.yuca</groupId>
+            <artifactId>yuca-ai</artifactId>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>

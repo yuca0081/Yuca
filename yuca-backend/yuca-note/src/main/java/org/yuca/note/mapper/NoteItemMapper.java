@@ -89,4 +89,21 @@ public interface NoteItemMapper extends BaseMapper<NoteItem> {
         ORDER BY updated_at DESC
     """)
     List<NoteItem> getPinnedDocuments(@Param("userId") Long userId);
+
+    /**
+     * 全文搜索用户笔记（标题+内容）
+     */
+    @Select("""
+        SELECT * FROM note_item
+        WHERE user_id = #{userId}
+          AND type = 'DOCUMENT'
+          AND deleted = 0
+          AND (title ILIKE '%' || #{query} || '%'
+               OR content ILIKE '%' || #{query} || '%')
+        ORDER BY updated_at DESC
+        LIMIT #{limit}
+    """)
+    List<NoteItem> searchDocuments(@Param("userId") Long userId,
+                                   @Param("query") String query,
+                                   @Param("limit") int limit);
 }
