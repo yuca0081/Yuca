@@ -78,19 +78,6 @@ public interface NoteItemMapper extends BaseMapper<NoteItem> {
                                       @Param("limit") int limit);
 
     /**
-     * 获取置顶文档
-     */
-    @Select("""
-        SELECT * FROM note_item
-        WHERE user_id = #{userId}
-          AND type = 'DOCUMENT'
-          AND is_pinned = true
-          AND deleted = 0
-        ORDER BY updated_at DESC
-    """)
-    List<NoteItem> getPinnedDocuments(@Param("userId") Long userId);
-
-    /**
      * 全文搜索用户笔记（标题+内容）
      */
     @Select("""

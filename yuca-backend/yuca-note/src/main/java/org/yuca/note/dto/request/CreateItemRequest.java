@@ -35,27 +35,10 @@ public class CreateItemRequest {
     @Size(max = 200, message = "标题最多200个字符")
     private String title;
 
-    /**
-     * 图标
-     */
-    @Size(max = 50, message = "图标最多50个字符")
-    private String icon;
-
     // ========== 文档专用字段 ==========
 
     /**
      * 文档内容（仅文档类型）
      */
     private String content;
-
-    /**
-     * 内容类型：MARKDOWN, RICH_TEXT（仅文档类型）
-     */
-    private String contentType;
-
-    /**
-     * 摘要（仅文档类型）
-     */
-    @Size(max = 500, message = "摘要最多500个字符")
-    private String summary;
 }

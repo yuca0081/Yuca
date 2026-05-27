@@ -52,19 +52,9 @@ public class NoteTreeResponse {
         private String title;
 
         /**
-         * 图标
-         */
-        private String icon;
-
-        /**
          * 排序序号
          */
         private Integer sortOrder;
-
-        /**
-         * 是否置顶
-         */
-        private Boolean isPinned;
 
         /**
          * 子项数量（仅文件夹）

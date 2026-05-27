@@ -85,17 +85,12 @@ public class NoteItemService extends ServiceImpl<NoteItemMapper, NoteItem> {
                 .parentId(request.getParentId())
                 .type(request.getType())
                 .title(request.getTitle())
-                .icon(request.getIcon())
-                .sortOrder(0)
-                .isPinned(false);
+                .sortOrder(0);
 
         // 文档专用字段
         if (ItemType.DOCUMENT.getCode().equals(request.getType())) {
             builder.content(request.getContent())
-                    .contentType(request.getContentType())
-                    .summary(request.getSummary())
                     .status("DRAFT")
-                    .viewCount(0)
                     .wordCount(calculateWordCount(request.getContent()));
         } else {
             // 文件夹专用字段
@@ -135,16 +130,8 @@ public class NoteItemService extends ServiceImpl<NoteItemMapper, NoteItem> {
             item.setTitle(request.getTitle());
         }
 
-        if (request.getIcon() != null) {
-            item.setIcon(request.getIcon());
-        }
-
         if (request.getSortOrder() != null) {
             item.setSortOrder(request.getSortOrder());
-        }
-
-        if (request.getIsPinned() != null) {
-            item.setIsPinned(request.getIsPinned());
         }
 
         // 更新文档专用字段
@@ -152,14 +139,6 @@ public class NoteItemService extends ServiceImpl<NoteItemMapper, NoteItem> {
             if (request.getContent() != null) {
                 item.setContent(request.getContent());
                 item.setWordCount(calculateWordCount(request.getContent()));
-            }
-
-            if (request.getContentType() != null) {
-                item.setContentType(request.getContentType());
-            }
-
-            if (request.getSummary() != null) {
-                item.setSummary(request.getSummary());
             }
 
             if (request.getStatus() != null) {
@@ -311,9 +290,7 @@ public class NoteItemService extends ServiceImpl<NoteItemMapper, NoteItem> {
                 node.setParentId(item.getParentId());
                 node.setType(item.getType());
                 node.setTitle(item.getTitle());
-                node.setIcon(item.getIcon());
                 node.setSortOrder(item.getSortOrder());
-                node.setIsPinned(item.getIsPinned());
                 node.setChildCount(item.getChildCount());
 
                 // 递归构建子节点
@@ -337,20 +314,6 @@ public class NoteItemService extends ServiceImpl<NoteItemMapper, NoteItem> {
      */
     public List<NoteItemResponse> getRecentDocuments(Long userId, int limit) {
         List<NoteItem> items = noteItemMapper.getRecentDocuments(userId, limit);
-
-        return items.stream()
-                .map(this::convertToResponse)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * 获取置顶文档
-     *
-     * @param userId 用户ID
-     * @return 文档列表
-     */
-    public List<NoteItemResponse> getPinnedDocuments(Long userId) {
-        List<NoteItem> items = noteItemMapper.getPinnedDocuments(userId);
 
         return items.stream()
                 .map(this::convertToResponse)

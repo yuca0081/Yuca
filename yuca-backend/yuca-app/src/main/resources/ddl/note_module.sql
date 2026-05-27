@@ -10,7 +10,6 @@ CREATE TABLE IF NOT EXISTS note_book (
     user_id         BIGINT NOT NULL,                 -- 所属用户
     name            VARCHAR(100) NOT NULL,           -- 笔记本名称
     description     TEXT,                            -- 描述
-    icon            VARCHAR(50),                     -- 图标
     sort_order      INT DEFAULT 0,                   -- 排序
     is_default      BOOLEAN DEFAULT FALSE,           -- 是否默认笔记本
     color           VARCHAR(20),                     -- 主题颜色
@@ -25,7 +24,6 @@ COMMENT ON TABLE note_book IS '笔记本表';
 COMMENT ON COLUMN note_book.user_id IS '所属用户ID';
 COMMENT ON COLUMN note_book.name IS '笔记本名称';
 COMMENT ON COLUMN note_book.description IS '笔记本描述';
-COMMENT ON COLUMN note_book.icon IS '图标';
 COMMENT ON COLUMN note_book.sort_order IS '排序序号';
 COMMENT ON COLUMN note_book.is_default IS '是否默认笔记本';
 COMMENT ON COLUMN note_book.color IS '主题颜色';
@@ -48,16 +46,11 @@ CREATE TABLE IF NOT EXISTS note_item (
 
     -- 通用字段（文件夹和文档都有）
     title           VARCHAR(200) NOT NULL,           -- 标题
-    icon            VARCHAR(50),                     -- 图标
     sort_order      INT DEFAULT 0,                   -- 同级排序
-    is_pinned       BOOLEAN DEFAULT FALSE,           -- 是否置顶
 
     -- 文档专用字段（FOLDER类型时为NULL）
     content         TEXT,                            -- 文档内容
-    content_type    VARCHAR(20),                     -- 内容类型：MARKDOWN, RICH_TEXT
-    summary         VARCHAR(500),                    -- 摘要（前500字）
     status          VARCHAR(20),                     -- 状态：DRAFT, PUBLISHED, ARCHIVED
-    view_count      INT,                             -- 浏览次数
     word_count      INT,                             -- 字数统计
 
     -- 文件夹统计字段（DOCUMENT类型时为NULL）
@@ -76,14 +69,9 @@ COMMENT ON COLUMN note_item.book_id IS '所属笔记本ID';
 COMMENT ON COLUMN note_item.parent_id IS '父节点ID（NULL表示笔记本根目录）';
 COMMENT ON COLUMN note_item.type IS '节点类型：FOLDER-文件夹，DOCUMENT-文档';
 COMMENT ON COLUMN note_item.title IS '标题';
-COMMENT ON COLUMN note_item.icon IS '图标';
 COMMENT ON COLUMN note_item.sort_order IS '同级排序序号';
-COMMENT ON COLUMN note_item.is_pinned IS '是否置顶';
 COMMENT ON COLUMN note_item.content IS '文档内容（仅DOCUMENT类型）';
-COMMENT ON COLUMN note_item.content_type IS '内容类型：MARKDOWN-Markdown，RICH_TEXT-富文本';
-COMMENT ON COLUMN note_item.summary IS '摘要（前500字）';
 COMMENT ON COLUMN note_item.status IS '状态：DRAFT-草稿，PUBLISHED-已发布，ARCHIVED-已归档';
-COMMENT ON COLUMN note_item.view_count IS '浏览次数';
 COMMENT ON COLUMN note_item.word_count IS '字数统计';
 COMMENT ON COLUMN note_item.child_count IS '直接子项数量（仅FOLDER类型）';
 COMMENT ON COLUMN note_item.published_at IS '发布时间';
@@ -103,7 +91,6 @@ CREATE INDEX idx_note_item_document_search ON note_item USING gin(
 
 CREATE INDEX idx_note_item_status ON note_item(status) WHERE type = 'DOCUMENT';
 CREATE INDEX idx_note_item_updated ON note_item(updated_at DESC) WHERE type = 'DOCUMENT';
-CREATE INDEX idx_note_item_pinned ON note_item(is_pinned, updated_at DESC) WHERE type = 'DOCUMENT' AND is_pinned = true;
 
 
 -- ============================================

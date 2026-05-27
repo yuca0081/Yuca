@@ -24,12 +24,6 @@ public class CreateNoteBookRequest {
     private String description;
 
     /**
-     * 图标
-     */
-    @Size(max = 50, message = "图标最多50个字符")
-    private String icon;
-
-    /**
      * 主题颜色
      */
     @Size(max = 20, message = "颜色最多20个字符")

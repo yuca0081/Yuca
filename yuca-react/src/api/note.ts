@@ -37,9 +37,6 @@ export const deleteNoteItem = (id: number) =>
 export const getNoteTree = (bookId: number) =>
   request.get<NoteTreeResponse>(`/note/items/books/${bookId}/tree`)
 
-// Recent & Pinned
+// Recent
 export const getRecentItems = (limit = 10) =>
   request.get<NoteItem[]>('/note/items/recent', { params: { limit } })
-
-export const getPinnedItems = () =>
-  request.get<NoteItem[]>('/note/items/pinned')

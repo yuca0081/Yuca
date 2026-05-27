@@ -26,11 +26,6 @@ public class NoteBookResponse {
     private String description;
 
     /**
-     * 图标
-     */
-    private String icon;
-
-    /**
      * 排序序号
      */
     private Integer sortOrder;

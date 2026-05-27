@@ -135,18 +135,6 @@ public class NoteItemController {
         return Result.success(list);
     }
 
-    /**
-     * 获取置顶文档
-     */
-    @GetMapping("/pinned")
-    @Operation(summary = "获取置顶文档")
-    @RequireLogin
-    public Result<List<NoteItemResponse>> getPinnedDocuments() {
-        Long userId = SecurityUtils.getCurrentUserId();
-        List<NoteItemResponse> list = noteItemService.getPinnedDocuments(userId);
-        return Result.success(list);
-    }
-
     // ========== 标签管理接口 ==========
 
     /**

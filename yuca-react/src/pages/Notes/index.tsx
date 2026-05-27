@@ -339,20 +339,49 @@ export default function Notes() {
     }
   }
 
-  // Filter tree by search
+  // Filter tree by search (pure function, no setState)
   const filterTree = (nodes: TreeNode[], query: string): TreeNode[] => {
     if (!query) return nodes
     return nodes.reduce<TreeNode[]>((acc, node) => {
       const childMatch = node.children ? filterTree(node.children, query) : []
       if (node.title.toLowerCase().includes(query.toLowerCase()) || childMatch.length > 0) {
         acc.push({ ...node, children: childMatch })
-        if (childMatch.length > 0) setExpandedIds(prev => new Set(prev).add(node.id))
       }
       return acc
     }, [])
   }
 
+  // Collect IDs of nodes whose children match the search query
+  const collectExpandedIds = (nodes: TreeNode[], query: string): Set<number> => {
+    const ids = new Set<number>()
+    const walk = (ns: TreeNode[]) => {
+      for (const node of ns) {
+        if (node.children) {
+          const childMatch = filterTree(node.children, query)
+          if (childMatch.length > 0) {
+            ids.add(node.id)
+            walk(node.children)
+          }
+        }
+      }
+    }
+    walk(nodes)
+    return ids
+  }
+
   const displayedNodes = search ? filterTree(treeNodes, search) : treeNodes
+
+  // When search changes, auto-expand matching branches
+  useEffect(() => {
+    if (search) {
+      const matched = collectExpandedIds(treeNodes, search)
+      setExpandedIds(prev => {
+        const next = new Set(prev)
+        for (const id of matched) next.add(id)
+        return next
+      })
+    }
+  }, [search, treeNodes])
 
   return (
     <div className="flex gap-6 h-[calc(100vh-8rem)]">

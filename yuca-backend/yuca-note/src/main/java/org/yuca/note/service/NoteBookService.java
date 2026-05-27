@@ -53,7 +53,6 @@ public class NoteBookService extends ServiceImpl<NoteBookMapper, NoteBook> {
                 .userId(userId)
                 .name(request.getName())
                 .description(request.getDescription())
-                .icon(request.getIcon())
                 .color(request.getColor())
                 .sortOrder(0)
                 .isDefault(false)
@@ -101,10 +100,6 @@ public class NoteBookService extends ServiceImpl<NoteBookMapper, NoteBook> {
 
         if (request.getDescription() != null) {
             noteBook.setDescription(request.getDescription());
-        }
-
-        if (request.getIcon() != null) {
-            noteBook.setIcon(request.getIcon());
         }
 
         if (request.getColor() != null) {

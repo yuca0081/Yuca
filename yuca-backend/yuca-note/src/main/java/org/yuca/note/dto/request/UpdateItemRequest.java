@@ -16,20 +16,9 @@ public class UpdateItemRequest {
     private String title;
 
     /**
-     * 图标
-     */
-    @Size(max = 50, message = "图标最多50个字符")
-    private String icon;
-
-    /**
      * 同级排序序号
      */
     private Integer sortOrder;
-
-    /**
-     * 是否置顶
-     */
-    private Boolean isPinned;
 
     // ========== 文档专用字段 ==========
 
@@ -37,17 +26,6 @@ public class UpdateItemRequest {
      * 文档内容（仅文档类型）
      */
     private String content;
-
-    /**
-     * 内容类型：MARKDOWN, RICH_TEXT（仅文档类型）
-     */
-    private String contentType;
-
-    /**
-     * 摘要（仅文档类型）
-     */
-    @Size(max = 500, message = "摘要最多500个字符")
-    private String summary;
 
     /**
      * 状态：DRAFT, PUBLISHED, ARCHIVED（仅文档类型）

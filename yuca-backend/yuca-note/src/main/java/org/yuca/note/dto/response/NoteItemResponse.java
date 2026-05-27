@@ -39,19 +39,9 @@ public class NoteItemResponse {
     private String title;
 
     /**
-     * 图标
-     */
-    private String icon;
-
-    /**
      * 同级排序序号
      */
     private Integer sortOrder;
-
-    /**
-     * 是否置顶
-     */
-    private Boolean isPinned;
 
     // ========== 文档专用字段 ==========
 
@@ -61,24 +51,9 @@ public class NoteItemResponse {
     private String content;
 
     /**
-     * 内容类型：MARKDOWN, RICH_TEXT
-     */
-    private String contentType;
-
-    /**
-     * 摘要
-     */
-    private String summary;
-
-    /**
      * 状态：DRAFT, PUBLISHED, ARCHIVED
      */
     private String status;
-
-    /**
-     * 浏览次数
-     */
-    private Integer viewCount;
 
     /**
      * 字数统计

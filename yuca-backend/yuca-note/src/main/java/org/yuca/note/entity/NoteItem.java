@@ -5,7 +5,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.yuca.note.enums.DocumentType;
 import org.yuca.note.enums.DocumentStatus;
 import org.yuca.note.enums.ItemType;
 
@@ -55,19 +54,9 @@ public class NoteItem {
     private String title;
 
     /**
-     * 图标
-     */
-    private String icon;
-
-    /**
      * 同级排序序号
      */
     private Integer sortOrder;
-
-    /**
-     * 是否置顶
-     */
-    private Boolean isPinned;
 
     // ========== 文档专用字段（FOLDER类型时为NULL） ==========
 
@@ -77,24 +66,9 @@ public class NoteItem {
     private String content;
 
     /**
-     * 内容类型：MARKDOWN, RICH_TEXT
-     */
-    private String contentType;
-
-    /**
-     * 摘要（前500字）
-     */
-    private String summary;
-
-    /**
      * 状态：DRAFT, PUBLISHED, ARCHIVED
      */
     private String status;
-
-    /**
-     * 浏览次数
-     */
-    private Integer viewCount;
 
     /**
      * 字数统计
@@ -150,13 +124,6 @@ public class NoteItem {
     }
 
     /**
-     * 检查是否为Markdown格式
-     */
-    public boolean isMarkdown() {
-        return DocumentType.MARKDOWN.getCode().equals(contentType);
-    }
-
-    /**
      * 检查是否为草稿
      */
     public boolean isDraft() {
@@ -171,19 +138,11 @@ public class NoteItem {
     }
 
     /**
-     * 检查是否置顶
-     */
-    public boolean isPinnedItem() {
-        return Boolean.TRUE.equals(isPinned);
-    }
-
-    /**
      * 设置为文件夹
      */
     public void setAsFolder() {
         this.type = ItemType.FOLDER.getCode();
         this.content = null;
-        this.contentType = null;
     }
 
     /**
@@ -191,16 +150,6 @@ public class NoteItem {
      */
     public void setAsDocument() {
         this.type = ItemType.DOCUMENT.getCode();
-    }
-
-    /**
-     * 增加浏览次数
-     */
-    public void incrementViewCount() {
-        if (this.viewCount == null) {
-            this.viewCount = 0;
-        }
-        this.viewCount++;
     }
 
     /**
