@@ -1,71 +1,61 @@
 package org.yuca.ai.embedding;
 
-import dev.langchain4j.community.model.dashscope.QwenEmbeddingModel;
-import dev.langchain4j.data.embedding.Embedding;
-import dev.langchain4j.data.segment.TextSegment;
-import dev.langchain4j.model.output.Response;
 import lombok.extern.slf4j.Slf4j;
 import org.yuca.ai.config.AiProperties;
+import org.yuca.ai.core.provider.qwen.QwenEmbeddingModel;
 
 import java.util.List;
 
 /**
  * 嵌入向量服务
- * 使用 DashScope text-embedding-v3 模型生成向量
+ * 使用 DashScope text-embedding-v3 模型生成向量（走 OpenAI 兼容端点）
  */
 @Slf4j
 public class EmbeddingService {
 
     private final QwenEmbeddingModel embeddingModel;
+    private final int dimension;
 
     public EmbeddingService(AiProperties aiProperties) {
         AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
         AiProperties.EmbeddingConfig embeddingConfig = aiProperties.getEmbedding();
 
-        this.embeddingModel = QwenEmbeddingModel.builder()
-                .modelName(embeddingConfig.getModelName())
-                .apiKey(dashscope.getApiKey())
-                .build();
+        this.embeddingModel = new QwenEmbeddingModel(
+                dashscope.getBaseUrl(),
+                dashscope.getApiKey(),
+                embeddingConfig.getModelName());
+        this.dimension = embeddingConfig.getDimension();
 
         log.info("EmbeddingService 初始化完成: model={}, dimension={}",
-                embeddingConfig.getModelName(), embeddingConfig.getDimension());
+                embeddingConfig.getModelName(), dimension);
     }
 
     /**
      * 生成单个文本的嵌入向量
      */
     public float[] embed(String text) {
-        Response<Embedding> response = embeddingModel.embed(text);
-        return response.content().vector();
+        return embeddingModel.embedBatch(List.of(text)).get(0);
     }
 
     /**
      * 批量生成嵌入向量
      */
     public List<float[]> embedBatch(List<String> texts) {
-        List<TextSegment> segments = texts.stream()
-                .map(TextSegment::from)
-                .toList();
-        Response<List<Embedding>> response = embeddingModel.embedAll(segments);
-        return response.content().stream()
-                .map(Embedding::vector)
-                .toList();
+        return embeddingModel.embedBatch(texts);
     }
 
     /**
      * 生成嵌入向量并转为 Double 数组（兼容 PGVectorTypeHandler）
      */
     public Double[] embedAsDoubleArray(String text) {
-        float[] vector = embed(text);
-        return floatToDoubleArray(vector);
+        return floatToDoubleArray(embed(text));
     }
 
     /**
      * 批量生成嵌入向量并转为 Double 数组列表
      */
     public List<Double[]> embedBatchAsDoubleArrays(List<String> texts) {
-        List<float[]> vectors = embedBatch(texts);
-        return vectors.stream()
+        return embedBatch(texts).stream()
                 .map(this::floatToDoubleArray)
                 .toList();
     }

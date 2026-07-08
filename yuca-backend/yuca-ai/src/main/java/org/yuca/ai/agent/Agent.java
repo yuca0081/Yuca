@@ -1,15 +1,15 @@
 package org.yuca.ai.agent;
 
-import dev.langchain4j.agent.tool.ToolExecutionRequest;
-import dev.langchain4j.agent.tool.ToolSpecification;
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.chat.request.ChatRequest;
-import dev.langchain4j.model.chat.response.ChatResponse;
-import dev.langchain4j.service.tool.ToolExecutor;
 import lombok.extern.slf4j.Slf4j;
 import org.yuca.ai.agent.enhancer.ChatEnhancer;
+import org.yuca.ai.core.message.ChatMessage;
+import org.yuca.ai.core.message.UserMessage;
+import org.yuca.ai.core.model.ChatModel;
+import org.yuca.ai.core.model.ChatRequest;
+import org.yuca.ai.core.model.ChatResponse;
+import org.yuca.ai.core.tool.ToolExecutionRequest;
+import org.yuca.ai.core.tool.ToolExecutor;
+import org.yuca.ai.core.tool.ToolSpecification;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -117,7 +117,7 @@ public class Agent {
             return "工具不存在: " + request.name();
         }
         try {
-            String result = executor.execute(request, null);
+            String result = executor.execute(request);
             log.info("工具执行成功: {} = {}", request.name(), result);
             return result;
         } catch (Exception e) {

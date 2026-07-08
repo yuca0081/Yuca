@@ -1,16 +1,16 @@
 package org.yuca.ai.controller;
 
-import dev.langchain4j.community.model.dashscope.QwenChatModel;
-import dev.langchain4j.community.model.zhipu.ZhipuAiChatModel;
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.request.ChatRequest;
-import dev.langchain4j.model.chat.response.ChatResponse;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.yuca.ai.agent.Agent;
 import org.yuca.ai.agent.AgentFactory;
 import org.yuca.ai.agent.ChatContext;
+import org.yuca.ai.config.AiProperties;
+import org.yuca.ai.core.message.UserMessage;
+import org.yuca.ai.core.model.ChatRequest;
+import org.yuca.ai.core.model.ChatResponse;
+import org.yuca.ai.core.provider.qwen.QwenChatModel;
 import org.yuca.common.response.Result;
 
 import java.util.Map;
@@ -26,13 +26,20 @@ public class AiTestController {
     @Resource
     private AgentFactory agentFactory;
 
+    @Resource
+    private AiProperties aiProperties;
+
     @GetMapping("/chatModel")
-    public String chatModel(String message){
-        QwenChatModel model = QwenChatModel.builder()
-                .modelName("qwen3.5-flash")
-                .apiKey("sk-4632c16e41c64e738d3b4147aa58581f").build();
-        UserMessage userMessage = UserMessage.from(message);
-        ChatResponse chat = model.chat(userMessage);
+    public String chatModel(String message) {
+        AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
+        QwenChatModel model = new QwenChatModel(
+                dashscope.getBaseUrl(),
+                "sk-4632c16e41c64e738d3b4147aa58581f",
+                "qwen3.5-flash");
+        ChatRequest request = ChatRequest.builder()
+                .messages(java.util.List.of(UserMessage.from(message)))
+                .build();
+        ChatResponse chat = model.chat(request);
         return chat.aiMessage().text();
     }
 
@@ -45,7 +52,7 @@ public class AiTestController {
         String message = body.get("message");
         Agent simpleAgent = agentFactory.simpleAgent();
         UserMessage userMessage = UserMessage.from(message);
-        ChatRequest request = ChatRequest.builder().messages(userMessage).build();
+        ChatRequest request = ChatRequest.builder().messages(java.util.List.of(userMessage)).build();
         ChatResponse chatResponse = simpleAgent.execute(request);
         String text = chatResponse.aiMessage().text();
         System.out.println(text);
@@ -65,7 +72,7 @@ public class AiTestController {
         Agent agent = agentFactory.defaultAgent(chatContext);
         String message = body.get("message");
         UserMessage userMessage = UserMessage.from(message);
-        ChatRequest request = ChatRequest.builder().messages(userMessage).build();
+        ChatRequest request = ChatRequest.builder().messages(java.util.List.of(userMessage)).build();
         ChatResponse chatResponse = agent.execute(request);
         return Result.success(chatResponse.aiMessage().text());
     }

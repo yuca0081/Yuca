@@ -2,9 +2,6 @@ package org.yuca.assistant.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.response.ChatResponse;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +9,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.yuca.ai.client.AiClient;
+import org.yuca.ai.core.message.AiMessage;
+import org.yuca.ai.core.message.ChatMessage;
+import org.yuca.ai.core.message.UserMessage;
+import org.yuca.ai.core.model.ChatRequest;
+import org.yuca.ai.core.model.ChatResponse;
 import org.yuca.assistant.dto.request.AssistantChatRequest;
 import org.yuca.assistant.dto.response.MessageDTO;
 import org.yuca.assistant.dto.response.SessionDTO;
@@ -21,7 +23,6 @@ import org.yuca.assistant.entity.AssistantSession;
 import org.yuca.assistant.mapper.AssistantMessageMapper;
 import org.yuca.assistant.mapper.AssistantSessionMapper;
 import org.yuca.common.exception.BusinessException;
-import dev.langchain4j.model.chat.request.ChatRequest;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -275,8 +276,8 @@ public class AssistantService {
                 String content = msg.getContent();
 
                 return switch (role) {
-                    case ROLE_USER -> new UserMessage(content);
-                    case ROLE_ASSISTANT -> new dev.langchain4j.data.message.AiMessage(content);
+                    case ROLE_USER -> (ChatMessage) UserMessage.from(content);
+                    case ROLE_ASSISTANT -> AiMessage.from(content);
                     default -> throw new IllegalStateException("Unknown message role: " + role);
                 };
             })

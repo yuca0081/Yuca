@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS note_book (
     user_id         BIGINT NOT NULL,
     name            VARCHAR(100) NOT NULL,
     description     TEXT,
-    icon            VARCHAR(50),
     sort_order      INT DEFAULT 0,
     is_default      BOOLEAN DEFAULT FALSE,
     color           VARCHAR(20),
@@ -21,7 +20,6 @@ COMMENT ON TABLE note_book IS '笔记本表';
 COMMENT ON COLUMN note_book.user_id IS '所属用户ID';
 COMMENT ON COLUMN note_book.name IS '笔记本名称';
 COMMENT ON COLUMN note_book.description IS '笔记本描述';
-COMMENT ON COLUMN note_book.icon IS '图标';
 COMMENT ON COLUMN note_book.sort_order IS '排序序号';
 COMMENT ON COLUMN note_book.is_default IS '是否默认笔记本';
 COMMENT ON COLUMN note_book.color IS '主题颜色';

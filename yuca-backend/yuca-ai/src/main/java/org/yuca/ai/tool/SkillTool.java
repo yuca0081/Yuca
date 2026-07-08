@@ -1,6 +1,6 @@
 package org.yuca.ai.tool;
 
-import dev.langchain4j.agent.tool.Tool;
+import org.yuca.ai.core.tool.Tool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

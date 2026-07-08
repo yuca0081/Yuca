@@ -1,10 +1,10 @@
 package org.yuca.ai.tool;
 
-import dev.langchain4j.agent.tool.Tool;
-import dev.langchain4j.agent.tool.ToolSpecification;
-import dev.langchain4j.agent.tool.ToolSpecifications;
-import dev.langchain4j.service.tool.DefaultToolExecutor;
-import dev.langchain4j.service.tool.ToolExecutor;
+import org.yuca.ai.core.tool.ReflectiveToolExecutor;
+import org.yuca.ai.core.tool.Tool;
+import org.yuca.ai.core.tool.ToolExecutor;
+import org.yuca.ai.core.tool.ToolSchemaGenerator;
+import org.yuca.ai.core.tool.ToolSpecification;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -22,11 +22,12 @@ public class ToolExtractor {
     private final Map<String, ToolExecutor> executors = new HashMap<>();
 
     public ToolExtractor(List<Object> toolObjects) {
+        ToolSchemaGenerator generator = new ToolSchemaGenerator();
         for (Object toolObject : toolObjects) {
-            specifications.addAll(ToolSpecifications.toolSpecificationsFrom(toolObject));
+            specifications.addAll(generator.generate(toolObject));
             for (Method method : toolObject.getClass().getDeclaredMethods()) {
                 if (method.isAnnotationPresent(Tool.class)) {
-                    executors.put(method.getName(), new DefaultToolExecutor(toolObject, method));
+                    executors.put(method.getName(), new ReflectiveToolExecutor(toolObject, method));
                 }
             }
         }

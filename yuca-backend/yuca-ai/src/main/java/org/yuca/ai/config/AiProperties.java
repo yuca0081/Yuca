@@ -16,7 +16,8 @@ public class AiProperties {
 
     @Data
     public static class ProviderConfig {
-        private String baseUrl;
+        /** OpenAI 兼容端点 base url */
+        private String baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
         private String modelName;
         private String apiKey;
     }

@@ -1,14 +1,14 @@
 package org.yuca.ai.client;
 
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.request.ChatRequest;
-import dev.langchain4j.model.chat.response.ChatResponse;
-import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.yuca.ai.agent.AgentFactory;
 import org.yuca.ai.agent.ChatContext;
+import org.yuca.ai.core.message.UserMessage;
+import org.yuca.ai.core.model.ChatRequest;
+import org.yuca.ai.core.model.ChatResponse;
+import org.yuca.ai.core.model.StreamingChatResponseHandler;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 

@@ -1,13 +1,17 @@
 package org.yuca.ai.history;
 
 import com.google.gson.Gson;
-import dev.langchain4j.agent.tool.ToolExecutionRequest;
-import dev.langchain4j.data.message.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import com.google.gson.reflect.TypeToken;
+import org.yuca.ai.core.message.AiMessage;
+import org.yuca.ai.core.message.ChatMessage;
+import org.yuca.ai.core.message.SystemMessage;
+import org.yuca.ai.core.message.ToolExecutionResultMessage;
+import org.yuca.ai.core.message.UserMessage;
+import org.yuca.ai.core.tool.ToolExecutionRequest;
 import org.yuca.ai.mapper.ChatHistoryMapper;
 
 import java.time.LocalDateTime;

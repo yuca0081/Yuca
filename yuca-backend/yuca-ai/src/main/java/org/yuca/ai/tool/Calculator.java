@@ -1,6 +1,6 @@
 package org.yuca.ai.tool;
 
-import dev.langchain4j.agent.tool.Tool;
+import org.yuca.ai.core.tool.Tool;
 
 public class Calculator {
     @Tool("Calculates the length of a string")

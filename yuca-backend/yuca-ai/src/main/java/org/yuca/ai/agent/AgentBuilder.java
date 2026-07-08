@@ -1,9 +1,9 @@
 package org.yuca.ai.agent;
 
-import dev.langchain4j.agent.tool.ToolSpecification;
-import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.service.tool.ToolExecutor;
 import org.yuca.ai.agent.enhancer.ChatEnhancer;
+import org.yuca.ai.core.model.ChatModel;
+import org.yuca.ai.core.tool.ToolExecutor;
+import org.yuca.ai.core.tool.ToolSpecification;
 
 import java.util.*;
 

@@ -1,12 +1,11 @@
 package org.yuca.ai.agent.enhancer;
 
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.SystemMessage;
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.request.ChatRequest;
-import dev.langchain4j.model.chat.response.ChatResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.yuca.ai.agent.ChatContext;
+import org.yuca.ai.core.message.ChatMessage;
+import org.yuca.ai.core.message.UserMessage;
+import org.yuca.ai.core.model.ChatRequest;
+import org.yuca.ai.core.model.ChatResponse;
 import org.yuca.ai.retrieval.RetrievalService;
 import org.yuca.ai.retrieval.RetrievedChunk;
 
@@ -16,7 +15,6 @@ import java.util.stream.Collectors;
 
 /**
  * RAG 增强器
- * 在 SystemPrompt 之前执行（order=-10），从知识库检索相关内容注入上下文
  */
 @Slf4j
 public class RagEnhancer implements ChatEnhancer {
@@ -55,7 +53,11 @@ public class RagEnhancer implements ChatEnhancer {
         messages.addAll(request.messages());
 
         log.debug("RagEnhancer: 检索到 {} 条相关内容, query={}", chunks.size(), query);
-        return ChatRequest.builder().messages(messages).build();
+        return ChatRequest.builder()
+                .messages(messages)
+                .parameters(request.parameters())
+                .toolSpecifications(request.toolSpecifications())
+                .build();
     }
 
     @Override

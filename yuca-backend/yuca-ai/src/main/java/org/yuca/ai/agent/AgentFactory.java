@@ -1,9 +1,5 @@
 package org.yuca.ai.agent;
 
-import dev.langchain4j.community.model.dashscope.QwenChatModel;
-import dev.langchain4j.community.model.dashscope.QwenStreamingChatModel;
-import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.chat.StreamingChatModel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.yuca.ai.agent.enhancer.ChatEnhancer;
@@ -11,6 +7,10 @@ import org.yuca.ai.agent.enhancer.HistoryEnhancer;
 import org.yuca.ai.agent.enhancer.RagEnhancer;
 import org.yuca.ai.agent.enhancer.SystemPromptEnhancer;
 import org.yuca.ai.config.AiProperties;
+import org.yuca.ai.core.model.ChatModel;
+import org.yuca.ai.core.model.StreamingChatModel;
+import org.yuca.ai.core.provider.qwen.QwenChatModel;
+import org.yuca.ai.core.provider.qwen.QwenStreamingChatModel;
 import org.yuca.ai.history.ChatHistoryStore;
 import org.yuca.ai.retrieval.RetrievalService;
 import org.yuca.ai.skill.SkillRegistry;
@@ -97,18 +97,12 @@ public class AgentFactory {
 
     private ChatModel buildChatModel() {
         AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
-        return QwenChatModel.builder()
-                .modelName(dashscope.getModelName())
-                .apiKey(dashscope.getApiKey())
-                .build();
+        return new QwenChatModel(dashscope.getBaseUrl(), dashscope.getApiKey(), dashscope.getModelName());
     }
 
     public StreamingChatModel buildStreamingChatModel() {
         AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
-        return QwenStreamingChatModel.builder()
-                .modelName(dashscope.getModelName())
-                .apiKey(dashscope.getApiKey())
-                .build();
+        return new QwenStreamingChatModel(dashscope.getBaseUrl(), dashscope.getApiKey(), dashscope.getModelName());
     }
 
     private String buildSystemPrompt() {

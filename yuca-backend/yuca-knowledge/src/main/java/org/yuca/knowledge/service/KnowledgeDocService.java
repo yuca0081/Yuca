@@ -4,15 +4,13 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import dev.langchain4j.data.document.Document;
-import dev.langchain4j.data.document.DocumentSplitter;
-import dev.langchain4j.data.document.splitter.DocumentByCharacterSplitter;
-import dev.langchain4j.data.segment.TextSegment;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.yuca.ai.core.document.Document;
+import org.yuca.ai.core.document.DocumentByCharacterSplitter;
 import org.yuca.ai.embedding.EmbeddingService;
 import org.yuca.common.exception.BusinessException;
 import org.yuca.common.response.ErrorCode;
@@ -87,7 +85,7 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
         String fileFormat = getFileFormat(file.getOriginalFilename());
 
         // 解析文档并切片
-        List<TextSegment> chunks = new ArrayList<>();
+        List<String> chunks = new ArrayList<>();
         try {
             byte[] bytes = file.getBytes();
             String content = new String(bytes, StandardCharsets.UTF_8);
@@ -239,20 +237,16 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
      * 保存文档切片
      * 使用 DashScope text-embedding-v3 生成嵌入向量
      */
-    private void saveChunks(Long docId, Long kbId, List<TextSegment> chunks) {
-        List<String> texts = chunks.stream()
-                .map(TextSegment::text)
-                .collect(Collectors.toList());
-
+    private void saveChunks(Long docId, Long kbId, List<String> chunks) {
         // 批量生成嵌入向量
-        List<Double[]> embeddings = embeddingService.embedBatchAsDoubleArrays(texts);
+        List<Double[]> embeddings = embeddingService.embedBatchAsDoubleArrays(chunks);
 
         // 保存切片
         for (int i = 0; i < chunks.size(); i++) {
             KnowledgeChunk chunk = new KnowledgeChunk();
             chunk.setDocId(docId);
             chunk.setKbId(kbId);
-            chunk.setContent(chunks.get(i).text());
+            chunk.setContent(chunks.get(i));
             chunk.setEmbedding(embeddings.get(i));
             chunk.setChunkIndex(i);
             chunk.setIsActive(true);

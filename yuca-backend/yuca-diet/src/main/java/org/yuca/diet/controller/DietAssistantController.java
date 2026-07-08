@@ -1,10 +1,5 @@
 package org.yuca.diet.controller;
 
-import dev.langchain4j.community.model.dashscope.QwenChatRequestParameters;
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.request.ChatRequest;
-import dev.langchain4j.model.chat.request.ChatRequestParameters;
-import dev.langchain4j.model.chat.response.ChatResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
@@ -12,6 +7,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.yuca.ai.agent.ChatContext;
+import org.yuca.ai.core.message.UserMessage;
+import org.yuca.ai.core.model.ChatRequest;
+import org.yuca.ai.core.model.ChatResponse;
+import org.yuca.ai.core.provider.qwen.QwenRequestParameters;
 import org.yuca.common.response.Result;
 import org.yuca.diet.agent.DietAgentFactory;
 import org.yuca.infrastructure.security.SecurityUtils;
@@ -37,7 +36,7 @@ public class DietAssistantController {
         ChatContext context = new ChatContext();
         context.setSessionId(request.getSessionId());
         context.setUserId(userId);
-        QwenChatRequestParameters build = QwenChatRequestParameters.builder().enableThinking(true).build();
+        QwenRequestParameters build = QwenRequestParameters.builder().enableThinking(true).build();
         ChatRequest chatRequest = ChatRequest.builder()
                 .messages(List.of(new UserMessage(request.getContent())))
                 .parameters(build)

@@ -1,11 +1,11 @@
 package org.yuca.ai.agent.enhancer;
 
 import com.google.gson.Gson;
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.SystemMessage;
-import dev.langchain4j.model.chat.request.ChatRequest;
-import dev.langchain4j.model.chat.response.ChatResponse;
+import org.yuca.ai.core.message.AiMessage;
+import org.yuca.ai.core.message.ChatMessage;
+import org.yuca.ai.core.message.SystemMessage;
+import org.yuca.ai.core.model.ChatRequest;
+import org.yuca.ai.core.model.ChatResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.yuca.ai.agent.ChatContext;
 import org.yuca.ai.history.ChatHistory;

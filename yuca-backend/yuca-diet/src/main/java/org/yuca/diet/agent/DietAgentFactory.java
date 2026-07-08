@@ -1,7 +1,5 @@
 package org.yuca.diet.agent;
 
-import dev.langchain4j.community.model.dashscope.QwenChatModel;
-import dev.langchain4j.model.chat.ChatModel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -10,6 +8,8 @@ import org.yuca.ai.agent.ChatContext;
 import org.yuca.ai.agent.enhancer.HistoryEnhancer;
 import org.yuca.ai.agent.enhancer.SystemPromptEnhancer;
 import org.yuca.ai.config.AiProperties;
+import org.yuca.ai.core.model.ChatModel;
+import org.yuca.ai.core.provider.qwen.QwenChatModel;
 import org.yuca.ai.history.ChatHistoryStore;
 import org.yuca.ai.tool.Calculator;
 import org.yuca.ai.tool.ToolExtractor;
@@ -55,10 +55,7 @@ public class DietAgentFactory {
 
     private ChatModel buildChatModel() {
         AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
-        return QwenChatModel.builder()
-                .modelName(dashscope.getModelName())
-                .apiKey(dashscope.getApiKey())
-                .build();
+        return new QwenChatModel(dashscope.getBaseUrl(), dashscope.getApiKey(), dashscope.getModelName());
     }
 
     private String buildDietSystemPrompt() {

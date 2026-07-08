@@ -1,8 +1,8 @@
 package org.yuca.ai.agent.enhancer;
 
-import dev.langchain4j.model.chat.request.ChatRequest;
-import dev.langchain4j.model.chat.response.ChatResponse;
 import org.yuca.ai.agent.ChatContext;
+import org.yuca.ai.core.model.ChatRequest;
+import org.yuca.ai.core.model.ChatResponse;
 
 /**
  * 聊天增强器接口

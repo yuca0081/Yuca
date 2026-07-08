@@ -1,9 +1,9 @@
 package org.yuca.ai.agent.enhancer;
 
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.request.ChatRequest;
-import dev.langchain4j.model.chat.response.ChatResponse;
+import org.yuca.ai.core.message.ChatMessage;
+import org.yuca.ai.core.message.UserMessage;
+import org.yuca.ai.core.model.ChatRequest;
+import org.yuca.ai.core.model.ChatResponse;
 import org.yuca.ai.agent.ChatContext;
 import org.yuca.ai.skill.SkillExecutor;
 

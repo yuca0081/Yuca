@@ -1,6 +1,6 @@
 package org.yuca.ai.history;
 
-import dev.langchain4j.data.message.ChatMessage;
+import org.yuca.ai.core.message.ChatMessage;
 
 import java.util.List;
 
