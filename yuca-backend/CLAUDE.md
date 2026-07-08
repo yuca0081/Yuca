@@ -76,7 +76,7 @@ yuca-common（无依赖）
 ## 数据库
 
 - **PostgreSQL** + **pgvector** 扩展（向量嵌入）
-- DDL 脚本：`yuca-app/src/main/resources/ddl/`（每个模块一个文件）
+- DDL 脚本：`yuca-app/src/main/resources/table/`（按模块分子目录，每个表一个文件）
 - Flyway 迁移：`yuca-ai/src/main/resources/db/migration/`（V1、V2 为 AI 表）
 - 知识库分块使用 1024 维向量 + HNSW 索引进行相似性搜索
 
@@ -87,5 +87,5 @@ yuca-common（无依赖）
 3. 在父 `<dependencyManagement>` 中添加版本管理的依赖声明
 4. 在 `yuca-app/pom.xml` 中添加依赖
 5. 遵循 `org.yuca.<名称>/{controller,service,mapper,entity,dto,...}` 包结构
-6. 在 `yuca-app/src/main/resources/ddl/` 中添加 DDL 脚本
+6. 在 `yuca-app/src/main/resources/table/<模块名>/` 中添加 DDL 脚本（每个表一个文件）
 7. 在 `application.yml` 的 `springdoc.packages-to-scan` 中添加新 Controller 包路径

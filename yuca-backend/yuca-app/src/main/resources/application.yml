@@ -115,6 +115,11 @@ yuca:
     embedding:
       model-name: text-embedding-v3
       dimension: 1024
+    rerank:
+      enabled: true
+      base-url: https://dashscope.aliyuncs.com
+      model-name: gte-rerank-v2
+      candidate-pool-size: 20
 
 # Swagger/OpenAPI配置
 springdoc:

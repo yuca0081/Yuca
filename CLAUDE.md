@@ -89,7 +89,7 @@ yuca-backend/
 
 **SSE 流式传输**：Assistant 模块使用 Spring `SseEmitter` 实现实时聊天流式传输。Tomcat 配置长超时（300s）并禁用压缩以支持 SSE。
 
-**数据库**：PostgreSQL + MyBatis-Plus。逻辑删除（`deleted` 字段）。pgvector 扩展用于 1024 维向量嵌入，HNSW 索引。DDL 脚本位于 `yuca-app/src/main/resources/ddl/`。
+**数据库**：PostgreSQL + MyBatis-Plus。逻辑删除（`deleted` 字段）。pgvector 扩展用于 1024 维向量嵌入，HNSW 索引。项目所有表的 DDL 脚本位于 `yuca-app/src/main/resources/table/`（按模块分子目录，每个表一个文件）。
 
 ### 新增后端模块
 
@@ -98,7 +98,7 @@ yuca-backend/
 3. 在 `<dependencyManagement>` 和 `yuca-app/pom.xml` 中添加 `<dependency>`
 4. 遵循包结构：`org.yuca.<名称>/{controller,service,mapper,entity,dto,...}`
 5. Entity 使用：`@TableName`、`@TableId(type = IdType.AUTO)`、`@TableLogic`
-6. 在 `yuca-app/src/main/resources/ddl/` 添加 DDL 脚本
+6. 在 `yuca-app/src/main/resources/table/<模块名>/` 添加 DDL 脚本（每个表一个文件）
 7. 在 `application.yml` 的 `springdoc.packages-to-scan` 中添加新 Controller 包路径
 
 ## 前端开发命令
