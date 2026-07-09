@@ -3,6 +3,7 @@ package org.yuca.ai.config;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.yuca.ai.core.document.MarkdownChapterTreeBuilder;
 import org.yuca.ai.core.provider.qwen.QwenRerankModel;
 import org.yuca.ai.embedding.EmbeddingService;
 import org.yuca.ai.retrieval.DefaultRerankService;
@@ -17,6 +18,14 @@ public class AiConfig {
     @Bean
     public EmbeddingService embeddingService(AiProperties aiProperties) {
         return new EmbeddingService(aiProperties);
+    }
+
+    /**
+     * Markdown 章节树构造器。无状态、线程安全，单例即可。
+     */
+    @Bean
+    public MarkdownChapterTreeBuilder markdownChapterTreeBuilder() {
+        return new MarkdownChapterTreeBuilder();
     }
 
     /**

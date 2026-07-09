@@ -9,8 +9,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.yuca.ai.core.document.ChapterNode;
 import org.yuca.ai.core.document.Document;
 import org.yuca.ai.core.document.DocumentByCharacterSplitter;
+import org.yuca.ai.core.document.MarkdownChapterTreeBuilder;
 import org.yuca.ai.embedding.EmbeddingService;
 import org.yuca.common.exception.BusinessException;
 import org.yuca.common.response.ErrorCode;
@@ -26,8 +28,12 @@ import org.yuca.knowledge.mapper.KnowledgeDocMapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -56,7 +62,13 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
     @Autowired
     private EmbeddingService embeddingService;
 
+    @Autowired
+    private MarkdownChapterTreeBuilder markdownChapterTreeBuilder;
+
     private static final long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
+    /** DashScope text-embedding-v3 单次批量上限 25 条，超出需自行分批 */
+    private static final int EMBED_BATCH_SIZE = 25;
 
     /**
      * 上传文档并处理
@@ -84,20 +96,50 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
         // 获取文件格式
         String fileFormat = getFileFormat(file.getOriginalFilename());
 
-        // 解析文档并切片
-        List<String> chunks = new ArrayList<>();
+        // 读文件内容（一次读取，hash 计算和后续解析共用，避免重复 IO）
+        byte[] bytes;
         try {
-            byte[] bytes = file.getBytes();
-            String content = new String(bytes, StandardCharsets.UTF_8);
-            Document document = Document.from(content);
-            DocumentByCharacterSplitter splitter = new DocumentByCharacterSplitter(100, 10);
-            chunks = splitter.split(document);
+            bytes = file.getBytes();
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+
+        // ──── SHA256 查重：同知识库下内容已索引过则直接返回已有 docId ────
+        // 跳过整个解析/embedding/插入流程，省 token 和时间
+        String contentHash = sha256(bytes);
+        KnowledgeDoc existing = knowledgeDocMapper.selectOne(
+                new LambdaQueryWrapper<KnowledgeDoc>()
+                        .eq(KnowledgeDoc::getKbId, kbId)
+                        .eq(KnowledgeDoc::getContentHash, contentHash)
+                        .last("LIMIT 1"));
+        if (existing != null) {
+            log.info("文档内容已存在，跳过索引: kbId={}, existingDocId={}, hash={}",
+                    kbId, existing.getId(), contentHash);
+            return existing.getId();
+        }
+        // ──── 查重结束 ────
+
+        // 解析文档为章节树（md）或扁平字符切片（非 md / md 无标题）
+        List<ChapterNode> chapterRoots;
+        try {
+            String content = new String(bytes, StandardCharsets.UTF_8);
+
+            boolean useChapterTree = "md".equalsIgnoreCase(fileFormat)
+                    && markdownChapterTreeBuilder.hasHeadings(content);
+            if (useChapterTree) {
+                chapterRoots = markdownChapterTreeBuilder.build(content);
+                log.info("Markdown 章节树切片: docName={}, 根节点数={}", file.getOriginalFilename(), chapterRoots.size());
+            } else {
+                chapterRoots = splitFlat(content);
+                log.info("扁平字符切片: docName={}, 切片数={}", file.getOriginalFilename(), chapterRoots.size());
+            }
         } catch (Exception e) {
             log.error("文档解析失败: {}", e.getMessage(), e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文档解析失败: " + e.getMessage());
         }
+
+        // 统计总节点数（含子节点）
+        int totalNodes = countNodes(chapterRoots);
 
         // 上传文件到MinIO
         UploadResult uploadResult;
@@ -117,14 +159,15 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
         knowledgeDoc.setDocSize(file.getSize());
         knowledgeDoc.setFilePath(uploadResult.getObjectName());
         knowledgeDoc.setDataSource("upload");
-        knowledgeDoc.setChunkCount(chunks.size());
+        knowledgeDoc.setChunkCount(totalNodes);
+        knowledgeDoc.setContentHash(contentHash);
 
         knowledgeDocMapper.insert(knowledgeDoc);
 
-        // 生成向量并存储切片
-        saveChunks(knowledgeDoc.getId(), kbId, chunks);
+        // 批量生成向量并按章节树结构存储切片
+        saveChapterNodes(knowledgeDoc.getId(), kbId, chapterRoots);
 
-        log.info("文档上传成功: docId={}, kbId={}, chunks={}", knowledgeDoc.getId(), kbId, chunks.size());
+        log.info("文档上传成功: docId={}, kbId={}, chunks={}", knowledgeDoc.getId(), kbId, totalNodes);
         return knowledgeDoc.getId();
     }
 
@@ -234,27 +277,124 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
     }
 
     /**
-     * 保存文档切片
-     * 使用 DashScope text-embedding-v3 生成嵌入向量
+     * 扁平字符切片（非 md 或无标题 md 的降级路径）。
+     * 把字符切片结果包装为 headingLevel=0 的 ChapterNode，后续与章节树节点共用一套存储逻辑。
      */
-    private void saveChunks(Long docId, Long kbId, List<String> chunks) {
-        // 批量生成嵌入向量
-        List<Double[]> embeddings = embeddingService.embedBatchAsDoubleArrays(chunks);
+    private List<ChapterNode> splitFlat(String content) {
+        DocumentByCharacterSplitter splitter = new DocumentByCharacterSplitter(100, 10);
+        List<String> chunks = splitter.split(Document.from(content));
+        List<ChapterNode> roots = new ArrayList<>();
+        for (String chunk : chunks) {
+            ChapterNode node = new ChapterNode();
+            node.setHeadingLevel(0);
+            node.setContent(chunk);
+            roots.add(node);
+        }
+        return roots;
+    }
 
-        // 保存切片
-        for (int i = 0; i < chunks.size(); i++) {
-            KnowledgeChunk chunk = new KnowledgeChunk();
-            chunk.setDocId(docId);
-            chunk.setKbId(kbId);
-            chunk.setContent(chunks.get(i));
-            chunk.setEmbedding(embeddings.get(i));
-            chunk.setChunkIndex(i);
-            chunk.setIsActive(true);
+    /** 统计章节树总节点数（含所有子孙） */
+    private int countNodes(List<ChapterNode> roots) {
+        int count = 0;
+        for (ChapterNode root : roots) {
+            count += countNodesDfs(root);
+        }
+        return count;
+    }
 
-            knowledgeChunkMapper.insert(chunk);
+    private int countNodesDfs(ChapterNode node) {
+        int count = 1;
+        for (ChapterNode child : node.getChildren()) {
+            count += countNodesDfs(child);
+        }
+        return count;
+    }
+
+    /**
+     * 章节树切片存储：
+     * <ol>
+     *   <li>DFS 前序遍历收集所有节点</li>
+     *   <li>按节点 embeddingText()（title + breadcrumb + content）批量生成向量</li>
+     *   <li>DFS 前序递归插入，MyBatis-Plus 回填 id 用于子节点的 parent_id</li>
+     * </ol>
+     */
+    private void saveChapterNodes(Long docId, Long kbId, List<ChapterNode> roots) {
+        if (roots.isEmpty()) {
+            log.warn("无切片可保存: docId={}", docId);
+            return;
         }
 
-        log.info("切片保存成功: docId={}, chunkCount={}", docId, chunks.size());
+        // 1. DFS 前序扁平化
+        List<ChapterNode> all = new ArrayList<>();
+        for (ChapterNode root : roots) {
+            flattenDfs(root, all);
+        }
+
+        // node -> 在 all 中的索引（用 IdentityHashMap 按==比较，避免 equals 误判）
+        Map<ChapterNode, Integer> indexMap = new IdentityHashMap<>();
+        for (int i = 0; i < all.size(); i++) {
+            indexMap.put(all.get(i), i);
+        }
+
+        // 2. 批量生成嵌入（分批规避 DashScope 单次 25 条上限）
+        List<String> embeddingTexts = all.stream().map(ChapterNode::embeddingText).toList();
+        List<Double[]> embeddings = embedInBatches(embeddingTexts);
+
+        // 3. DFS 前序插入：父先于子，回填 id 供子节点 parentId 使用
+        int[] chunkIdx = {0};
+        for (ChapterNode root : roots) {
+            insertNodeRecursive(root, null, docId, kbId, embeddings, indexMap, chunkIdx);
+        }
+
+        log.info("章节树切片保存成功: docId={}, 节点数={}", docId, all.size());
+    }
+
+    private void flattenDfs(ChapterNode node, List<ChapterNode> out) {
+        out.add(node);
+        for (ChapterNode child : node.getChildren()) {
+            flattenDfs(child, out);
+        }
+    }
+
+    private void insertNodeRecursive(ChapterNode node, Long parentId, Long docId, Long kbId,
+                                     List<Double[]> embeddings,
+                                     Map<ChapterNode, Integer> indexMap,
+                                     int[] chunkIdx) {
+        KnowledgeChunk chunk = new KnowledgeChunk();
+        chunk.setDocId(docId);
+        chunk.setKbId(kbId);
+        chunk.setContent(node.getContent());
+        chunk.setEmbedding(embeddings.get(indexMap.get(node)));
+        chunk.setChunkIndex(chunkIdx[0]++);
+        chunk.setIsActive(true);
+
+        // 章节树字段（headingLevel > 0 时填充；扁平切片 headingLevel=0 时全为 NULL）
+        if (node.getHeadingLevel() > 0) {
+            chunk.setTitle(node.getTitle());
+            chunk.setHeadingLevel((short) node.getHeadingLevel());
+            chunk.setBreadcrumb(node.getBreadcrumb());
+            chunk.setLineStart(node.getLineStart());
+            chunk.setLineEnd(node.getLineEnd());
+        }
+        chunk.setParentId(parentId);
+
+        knowledgeChunkMapper.insert(chunk);  // 回填 chunk.id
+        node.setDbId(chunk.getId());
+
+        for (ChapterNode child : node.getChildren()) {
+            insertNodeRecursive(child, chunk.getId(), docId, kbId, embeddings, indexMap, chunkIdx);
+        }
+    }
+
+    /** 分批调 embedding API，规避 DashScope text-embedding-v3 单次 25 条上限 */
+    private List<Double[]> embedInBatches(List<String> texts) {
+        List<Double[]> all = new ArrayList<>(texts.size());
+        for (int i = 0; i < texts.size(); i += EMBED_BATCH_SIZE) {
+            int end = Math.min(i + EMBED_BATCH_SIZE, texts.size());
+            List<String> batch = texts.subList(i, end);
+            all.addAll(embeddingService.embedBatchAsDoubleArrays(batch));
+        }
+        return all;
     }
 
     /**
@@ -284,5 +424,23 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
             return fileName.substring(lastDotIndex + 1).toLowerCase();
         }
         return "txt";
+    }
+
+    /**
+     * 计算字节数组的 SHA256 指纹（64 位十六进制小写字符串）。
+     * 用于上传查重——内容指纹比文件名/路径更稳定，重命名/移动不影响判断。
+     */
+    private String sha256(byte[] bytes) {
+        try {
+            byte[] hash = MessageDigest.getInstance("SHA-256").digest(bytes);
+            StringBuilder sb = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            // SHA-256 是 JRE 标准算法，所有 JVM 都必须支持，理论上不会到这里
+            throw new RuntimeException("SHA-256 算法不可用", e);
+        }
     }
 }

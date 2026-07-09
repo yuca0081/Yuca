@@ -1,7 +1,6 @@
 package org.yuca.ai.core.provider.qwen;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.client.RestClient;
 
@@ -22,7 +21,6 @@ import java.util.Map;
 @Slf4j
 public class QwenRerankModel {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String RERANK_PATH = "/api/v1/services/rerank/text-rerank/text-rerank";
 
     private final RestClient restClient;

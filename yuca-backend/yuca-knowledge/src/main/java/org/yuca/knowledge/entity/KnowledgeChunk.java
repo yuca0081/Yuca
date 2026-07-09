@@ -70,4 +70,41 @@ public class KnowledgeChunk {
      */
     @TableLogic
     private Integer deleted;
+
+    // ========== 章节树字段（v1 新增，都可空，非 md 文件的 chunk 这些字段为 NULL） ==========
+
+    /**
+     * 章节标题，e.g. "切块策略"。非 md 平切片为 NULL
+     */
+    private String title;
+
+    /**
+     * 标题层级 1-6 对应 H1-H6；NULL 表示非 md 平切片
+     */
+    private Short headingLevel;
+
+    /**
+     * 面包屑路径，e.g. "RAG > 召回 > 切块策略"。根节点时与 title 相同
+     */
+    private String breadcrumb;
+
+    /**
+     * 父节点 DB id；NULL 表示根节点
+     */
+    private Long parentId;
+
+    /**
+     * LLM 摘要（v1 不填，留字段为后续任务）
+     */
+    private String summary;
+
+    /**
+     * 源文件起始行号（含），从 1 开始计数
+     */
+    private Integer lineStart;
+
+    /**
+     * 源文件结束行号（含）
+     */
+    private Integer lineEnd;
 }
