@@ -14,6 +14,7 @@ public class AiProperties {
     private ProviderConfig openai = new ProviderConfig();
     private EmbeddingConfig embedding = new EmbeddingConfig();
     private RerankConfig rerank = new RerankConfig();
+    private IntentClassifierConfig intentClassifier = new IntentClassifierConfig();
 
     @Data
     public static class ProviderConfig {
@@ -36,8 +37,22 @@ public class AiProperties {
         /** DashScope 原生 rerank 端点的 base url（非 OpenAI 兼容端点） */
         private String baseUrl = "https://dashscope.aliyuncs.com";
         private String modelName = "gte-rerank-v2";
-        /** 送入 reranker 的候选池大小。文章《1500 行代码》实验：候选池太大会稀释 reranker 注意力，R@5 反降 */
         private int candidatePoolSize = 20;
+    }
+
+    @Data
+    public static class IntentClassifierConfig {
+        /**
+         * 是否启用意图识别。关闭后 AgentFactory 不会注册 IntentRecognitionEnhancer，
+         * RagEnhancer 见 context.intent == null 走原路径（每次都执行 RAG）。
+         */
+        private boolean enabled = true;
+        /**
+         * 小模型名（DashScope）。复用 {@link ProviderConfig#getBaseUrl()} 和
+         * {@link ProviderConfig#getApiKey()} 的 dashscope 凭证，不独立配置。
+         * 推荐 qwen-turbo——便宜快，对短文本意图分类准确率足够。
+         */
+        private String modelName = "qwen-turbo";
     }
 
     @Data

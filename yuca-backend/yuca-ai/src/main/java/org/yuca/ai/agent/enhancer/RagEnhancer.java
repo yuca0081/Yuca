@@ -2,6 +2,7 @@ package org.yuca.ai.agent.enhancer;
 
 import lombok.extern.slf4j.Slf4j;
 import org.yuca.ai.agent.ChatContext;
+import org.yuca.ai.agent.Intent;
 import org.yuca.ai.core.message.ChatMessage;
 import org.yuca.ai.core.message.UserMessage;
 import org.yuca.ai.core.model.ChatRequest;
@@ -36,6 +37,14 @@ public class RagEnhancer implements ChatEnhancer {
 
     @Override
     public ChatRequest before(ChatRequest request, ChatContext context) {
+        // 意图路由：仅 QA / UNKNOWN（或未启用意图识别的 null）才跑 RAG
+        // CHITCHAT / TASK / CREATION 跳过，省 embedding + rerank API 成本
+        Intent intent = context.getIntent();
+        if (intent != null && intent != Intent.QA && intent != Intent.UNKNOWN) {
+            log.debug("RagEnhancer 跳过: intent={}", intent);
+            return request;
+        }
+
         String query = extractLastUserMessage(request.messages());
         if (query == null || query.isBlank()) {
             return request;

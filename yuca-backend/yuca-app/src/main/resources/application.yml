@@ -120,6 +120,9 @@ yuca:
       base-url: https://dashscope.aliyuncs.com
       model-name: gte-rerank-v2
       candidate-pool-size: 20
+    intent-classifier:
+      enabled: true
+      model-name: qwen-turbo   # 复用 dashscope.base-url + dashscope.api-key
 
 # Swagger/OpenAPI配置
 springdoc:

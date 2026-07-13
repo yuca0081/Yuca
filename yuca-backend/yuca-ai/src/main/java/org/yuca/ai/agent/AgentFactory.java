@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.yuca.ai.agent.enhancer.ChatEnhancer;
 import org.yuca.ai.agent.enhancer.HistoryEnhancer;
+import org.yuca.ai.agent.enhancer.IntentRecognitionEnhancer;
 import org.yuca.ai.agent.enhancer.RagEnhancer;
 import org.yuca.ai.agent.enhancer.SystemPromptEnhancer;
 import org.yuca.ai.config.AiProperties;
@@ -75,6 +76,18 @@ public class AgentFactory {
         String systemPrompt = buildSystemPrompt();
 
         List<ChatEnhancer> enhancers = new ArrayList<>();
+
+        // 意图识别（order=-1，最先跑）：写 context.intent 供 RagEnhancer 路由
+        // 失败/未启用时 RagEnhancer 走原路径，行为等价于重构前
+        if (aiProperties.getIntentClassifier().isEnabled()) {
+            AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
+            ChatModel intentModel = new QwenChatModel(
+                    dashscope.getBaseUrl(),
+                    dashscope.getApiKey(),
+                    aiProperties.getIntentClassifier().getModelName());
+            enhancers.add(new IntentRecognitionEnhancer(intentModel));
+        }
+
         if (kbId != null) {
             enhancers.add(new RagEnhancer(retrievalService, kbId, 5));
         }

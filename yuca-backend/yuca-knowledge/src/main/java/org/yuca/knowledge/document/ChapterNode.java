@@ -1,4 +1,4 @@
-package org.yuca.ai.core.document;
+package org.yuca.knowledge.document;
 
 import lombok.Data;
 
@@ -53,9 +53,6 @@ public class ChapterNode {
 
     /**
      * 计算 embedding 源文本。
-     *
-     * <p>文章《1500 行代码》："面包屑拼入 embedding 文本携带更多上下文语义"。
-     * v1 不做 LLM 摘要，直接拼 title + breadcrumb + content。
      *
      * <p>null 安全：非 markdown 平切片（headingLevel=0）没有 title/breadcrumb，
      * 此时只返回 content，避免拼出 "null\nnull\n..." 字符串污染 embedding。

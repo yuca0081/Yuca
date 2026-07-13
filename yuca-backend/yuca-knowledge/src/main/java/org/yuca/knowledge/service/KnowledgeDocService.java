@@ -9,11 +9,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import org.yuca.ai.core.document.ChapterNode;
-import org.yuca.ai.core.document.Document;
-import org.yuca.ai.core.document.DocumentByCharacterSplitter;
-import org.yuca.ai.core.document.MarkdownChapterTreeBuilder;
 import org.yuca.ai.embedding.EmbeddingService;
+import org.yuca.knowledge.document.ChapterNode;
+import org.yuca.knowledge.document.Document;
+import org.yuca.knowledge.document.DocumentByCharacterSplitter;
+import org.yuca.knowledge.document.MarkdownChapterTreeBuilder;
 import org.yuca.common.exception.BusinessException;
 import org.yuca.common.response.ErrorCode;
 import org.yuca.infrastructure.storage.dto.UploadResult;
@@ -28,8 +28,6 @@ import org.yuca.knowledge.mapper.KnowledgeDocMapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -96,32 +94,10 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
         // 获取文件格式
         String fileFormat = getFileFormat(file.getOriginalFilename());
 
-        // 读文件内容（一次读取，hash 计算和后续解析共用，避免重复 IO）
-        byte[] bytes;
-        try {
-            bytes = file.getBytes();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        // ──── SHA256 查重：同知识库下内容已索引过则直接返回已有 docId ────
-        // 跳过整个解析/embedding/插入流程，省 token 和时间
-        String contentHash = sha256(bytes);
-        KnowledgeDoc existing = knowledgeDocMapper.selectOne(
-                new LambdaQueryWrapper<KnowledgeDoc>()
-                        .eq(KnowledgeDoc::getKbId, kbId)
-                        .eq(KnowledgeDoc::getContentHash, contentHash)
-                        .last("LIMIT 1"));
-        if (existing != null) {
-            log.info("文档内容已存在，跳过索引: kbId={}, existingDocId={}, hash={}",
-                    kbId, existing.getId(), contentHash);
-            return existing.getId();
-        }
-        // ──── 查重结束 ────
-
         // 解析文档为章节树（md）或扁平字符切片（非 md / md 无标题）
         List<ChapterNode> chapterRoots;
         try {
+            byte[] bytes = file.getBytes();
             String content = new String(bytes, StandardCharsets.UTF_8);
 
             boolean useChapterTree = "md".equalsIgnoreCase(fileFormat)
@@ -133,6 +109,8 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
                 chapterRoots = splitFlat(content);
                 log.info("扁平字符切片: docName={}, 切片数={}", file.getOriginalFilename(), chapterRoots.size());
             }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         } catch (Exception e) {
             log.error("文档解析失败: {}", e.getMessage(), e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文档解析失败: " + e.getMessage());
@@ -160,7 +138,6 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
         knowledgeDoc.setFilePath(uploadResult.getObjectName());
         knowledgeDoc.setDataSource("upload");
         knowledgeDoc.setChunkCount(totalNodes);
-        knowledgeDoc.setContentHash(contentHash);
 
         knowledgeDocMapper.insert(knowledgeDoc);
 
@@ -424,23 +401,5 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
             return fileName.substring(lastDotIndex + 1).toLowerCase();
         }
         return "txt";
-    }
-
-    /**
-     * 计算字节数组的 SHA256 指纹（64 位十六进制小写字符串）。
-     * 用于上传查重——内容指纹比文件名/路径更稳定，重命名/移动不影响判断。
-     */
-    private String sha256(byte[] bytes) {
-        try {
-            byte[] hash = MessageDigest.getInstance("SHA-256").digest(bytes);
-            StringBuilder sb = new StringBuilder(hash.length * 2);
-            for (byte b : hash) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            // SHA-256 是 JRE 标准算法，所有 JVM 都必须支持，理论上不会到这里
-            throw new RuntimeException("SHA-256 算法不可用", e);
-        }
     }
 }

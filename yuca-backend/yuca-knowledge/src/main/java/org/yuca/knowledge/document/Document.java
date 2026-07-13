@@ -1,4 +1,4 @@
-package org.yuca.ai.core.document;
+package org.yuca.knowledge.document;
 
 /**
  * 文档包装类型，承载待切片的原始文本。

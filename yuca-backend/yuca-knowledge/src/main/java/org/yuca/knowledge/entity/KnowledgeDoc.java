@@ -62,11 +62,6 @@ public class KnowledgeDoc {
     private Integer chunkCount;
 
     /**
-     * 文档内容 SHA256 指纹（64 位十六进制小写）。用于上传查重——同一知识库下 hash 已存在则跳过解析/embedding/插入流程
-     */
-    private String contentHash;
-
-    /**
      * 创建时间
      */
     @TableField(fill = FieldFill.INSERT)

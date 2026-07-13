@@ -3,7 +3,6 @@ package org.yuca.ai.config;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.yuca.ai.core.document.MarkdownChapterTreeBuilder;
 import org.yuca.ai.core.provider.qwen.QwenRerankModel;
 import org.yuca.ai.embedding.EmbeddingService;
 import org.yuca.ai.retrieval.DefaultRerankService;
@@ -21,14 +20,6 @@ public class AiConfig {
     }
 
     /**
-     * Markdown 章节树构造器。无状态、线程安全，单例即可。
-     */
-    @Bean
-    public MarkdownChapterTreeBuilder markdownChapterTreeBuilder() {
-        return new MarkdownChapterTreeBuilder();
-    }
-
-    /**
      * Cross-Encoder 重排服务。enabled=false 时不创建 bean，
      * KnowledgeRetrievalService 通过 ObjectProvider 探测到 null 后走纯 RRF 路径。
      */
@@ -42,3 +33,4 @@ public class AiConfig {
         return new DefaultRerankService(model);
     }
 }
+

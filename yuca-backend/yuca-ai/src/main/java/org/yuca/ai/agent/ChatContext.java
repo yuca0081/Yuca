@@ -15,6 +15,12 @@ public class ChatContext {
     private String sessionId;
     private Long userId;
 
+    /**
+     * 用户意图，由 IntentRecognitionEnhancer 写入。
+     * {@code null} 表示意图识别未启用（或该请求未经过该增强器），下游当作 UNKNOWN 处理。
+     */
+    private Intent intent;
+
     private final Map<String, Object> attributes = new HashMap<>();
 
     public ChatContext attribute(String key, Object value) {

@@ -1,4 +1,4 @@
-package org.yuca.ai.core.document;
+package org.yuca.knowledge.document;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -1,4 +1,4 @@
-package org.yuca.ai.core.document;
+package org.yuca.knowledge.document;
 
 import lombok.extern.slf4j.Slf4j;
 
