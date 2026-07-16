@@ -24,6 +24,11 @@ import java.util.stream.Collectors;
 @Slf4j
 public class Agent {
 
+    /** 单次工具调用最大尝试次数（含首次调用，共 3 次机会） */
+    private static final int MAX_TOOL_ATTEMPTS = 3;
+    /** 压缩后的错误 message 最大长度，超出按首部根因截断 */
+    private static final int MAX_ERROR_MESSAGE_LENGTH = 200;
+
     private final ChatModel chatModel;
     private final ChatContext context;
     private final List<ChatEnhancer> enhancers;
@@ -109,20 +114,62 @@ public class Agent {
     }
 
     /**
-     * 执行工具：通过预建的 ToolExecutor 索引直接调用
+     * 执行工具：最多 {@value MAX_TOOL_ATTEMPTS} 次尝试；全部失败时压缩错误为精炼描述返回。
+     *
+     * <p>调用方（{@link #execute}）会把返回值拼进消息列表回塞给 LLM，LLM 据此自纠正参数或改换工具。
+     * 因此失败路径返回的字符串必须简洁可读——原始异常 message 可能含完整堆栈、HTTP 响应体、JSON dump
+     * 等冗长内容，直接回塞既爆 token 又干扰决策，走 {@link #compressToolError} 压缩。
      */
     private String executeTool(ToolExecutionRequest request) {
         ToolExecutor executor = toolExecutors.get(request.name());
         if (executor == null) {
-            return "工具不存在: " + request.name();
+            log.warn("工具不存在: {}", request.name());
+            return "[工具不存在，请确认工具名] 期望: " + request.name();
         }
-        try {
-            String result = executor.execute(request);
-            log.info("工具执行成功: {} = {}", request.name(), result);
-            return result;
-        } catch (Exception e) {
-            log.error("工具执行失败: {}", request.name(), e);
-            return "工具执行失败: " + e.getMessage();
+
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= MAX_TOOL_ATTEMPTS; attempt++) {
+            try {
+                String result = executor.execute(request);
+                if (attempt == 1) {
+                    log.info("工具执行成功: {} = {}", request.name(), result);
+                } else {
+                    log.info("工具执行成功（第 {} 次尝试命中）: {}", attempt, request.name());
+                }
+                return result;
+            } catch (Exception e) {
+                lastException = e;
+                if (attempt < MAX_TOOL_ATTEMPTS) {
+                    log.warn("工具执行失败（尝试 {}/{}）: {} - {}，将重试",
+                            attempt, MAX_TOOL_ATTEMPTS, request.name(), e.getMessage());
+                } else {
+                    log.error("工具 {} 共 {} 次尝试均失败", request.name(), MAX_TOOL_ATTEMPTS, e);
+                }
+            }
         }
+
+        return compressToolError(lastException);
+    }
+
+    /**
+     * 压缩工具异常为精炼描述。策略：
+     * <ol>
+     *   <li>保留异常类型 simpleName（去掉包前缀，如 SocketTimeoutException）</li>
+     *   <li>折叠所有空白为单个空格，消除换行/缩进噪声</li>
+     *   <li>超长 message 截断保留首部根因</li>
+     * </ol>
+     * 最终格式：{@code [共尝试 N 次均失败，请修正参数或换工具] ExceptionType: <精简 message>}
+     */
+    private String compressToolError(Exception e) {
+        String errorType = e.getClass().getSimpleName();
+        String raw = e.getMessage();
+        String concise = (raw == null || raw.isBlank())
+                ? "无详细错误信息"
+                : raw.replaceAll("\\s+", " ").trim();
+        if (concise.length() > MAX_ERROR_MESSAGE_LENGTH) {
+            concise = concise.substring(0, MAX_ERROR_MESSAGE_LENGTH) + "...";
+        }
+        return String.format("[共尝试 %d 次均失败，请修正参数或换工具] %s: %s",
+                MAX_TOOL_ATTEMPTS, errorType, concise);
     }
 }
