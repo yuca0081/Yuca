@@ -44,6 +44,39 @@ public class PostgresChatHistoryStore implements ChatHistoryStore {
     }
 
     @Override
+    public List<ChatMessage> getActiveMessages(String sessionId) {
+        try {
+            List<ChatHistory> histories = chatHistoryMapper.selectBySessionId(sessionId);
+            if (histories.isEmpty()) {
+                return List.of();
+            }
+
+            // 从尾向头找最新一条 SUMMARY——它就是当前活跃历史的起点
+            // SUMMARY 之前的所有消息已被该摘要取代，不再加载
+            int summaryIdx = -1;
+            for (int i = histories.size() - 1; i >= 0; i--) {
+                if ("SUMMARY".equals(histories.get(i).getMessageType())) {
+                    summaryIdx = i;
+                    break;
+                }
+            }
+
+            List<ChatHistory> active = summaryIdx >= 0
+                    ? histories.subList(summaryIdx, histories.size())
+                    : histories;
+
+            log.debug("加载 active 消息: sessionId={}, total={}, active={}, summaryAt={}",
+                    sessionId, histories.size(), active.size(), summaryIdx);
+            return active.stream()
+                    .map(this::toChatMessage)
+                    .toList();
+        } catch (Exception e) {
+            log.error("加载 active 消息失败, sessionId={}", sessionId, e);
+            return List.of();
+        }
+    }
+
+    @Override
     public void appendMessages(String sessionId, List<ChatHistory> messages) {
         for (ChatHistory history : messages) {
             try {
@@ -124,6 +157,9 @@ public class PostgresChatHistoryStore implements ChatHistoryStore {
         return switch (history.getMessageType()) {
             case "USER" -> UserMessage.from(history.getContent());
             case "SYSTEM" -> SystemMessage.from(history.getContent());
+            // SUMMARY 也映射为 SystemMessage：它是系统注入的"前期对话摘要"上下文，
+            // 不算真正的 user/ai 轮次，HistoryEnhancer.after 也会据此把它排除在保存集合外
+            case "SUMMARY" -> SystemMessage.from("[前期对话摘要] " + history.getContent());
             case "AI" -> AiMessage.from(history.getContent());
             case "TOOL" -> {
                 List<ToolExecutionRequest> requests = gson.fromJson(

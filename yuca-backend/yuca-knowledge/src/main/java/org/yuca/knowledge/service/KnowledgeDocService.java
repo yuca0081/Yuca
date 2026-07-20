@@ -23,12 +23,15 @@ import org.yuca.knowledge.entity.KnowledgeChunk;
 import org.yuca.knowledge.entity.KnowledgeDoc;
 import org.yuca.knowledge.entity.KnowledgeBase;
 import org.yuca.knowledge.mapper.KnowledgeBaseMapper;
+import org.yuca.knowledge.document.parser.DocumentParserRegistry;
 import org.yuca.knowledge.mapper.KnowledgeChunkMapper;
 import org.yuca.knowledge.mapper.KnowledgeDocMapper;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,6 +66,9 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
     @Autowired
     private MarkdownChapterTreeBuilder markdownChapterTreeBuilder;
 
+    @Autowired
+    private DocumentParserRegistry documentParserRegistry;
+
     private static final long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
     /** DashScope text-embedding-v3 单次批量上限 25 条，超出需自行分批 */
@@ -91,26 +97,43 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
         // 验证文件
         validateFile(file);
 
-        // 获取文件格式
+        // 获取文件格式与文件名
         String fileFormat = getFileFormat(file.getOriginalFilename());
+        String docName = file.getOriginalFilename();
 
-        // 解析文档为章节树（md）或扁平字符切片（非 md / md 无标题）
+        // 读取原始字节并计算 SHA256，用于增量更新判断
+        byte[] bytes;
+        String contentHash;
+        try {
+            bytes = file.getBytes();
+            contentHash = sha256Hex(bytes);
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文件读取失败: " + e.getMessage());
+        }
+
+        // 查找同 (kbId, docName) 的未删除旧文档（@TableLogic 自动过滤 deleted=1）
+        KnowledgeDoc oldDoc = findActiveByName(kbId, docName);
+
+        // 分支 A：内容完全相同 → 跳过解析/上传/嵌入，直接返回旧 docId
+        if (oldDoc != null && contentHash.equals(oldDoc.getContentHash())) {
+            log.info("[upload] hash 相同，跳过上传: kbId={}, docName={}, oldDocId={}", kbId, docName, oldDoc.getId());
+            return oldDoc.getId();
+        }
+
+        // 分支 B/C：内容不同或首次上传 → 解析、切片
         List<ChapterNode> chapterRoots;
         try {
-            byte[] bytes = file.getBytes();
-            String content = new String(bytes, StandardCharsets.UTF_8);
+            String content = documentParserRegistry.parse(fileFormat, bytes);
 
             boolean useChapterTree = "md".equalsIgnoreCase(fileFormat)
                     && markdownChapterTreeBuilder.hasHeadings(content);
             if (useChapterTree) {
                 chapterRoots = markdownChapterTreeBuilder.build(content);
-                log.info("Markdown 章节树切片: docName={}, 根节点数={}", file.getOriginalFilename(), chapterRoots.size());
+                log.info("Markdown 章节树切片: docName={}, 根节点数={}", docName, chapterRoots.size());
             } else {
                 chapterRoots = splitFlat(content);
-                log.info("扁平字符切片: docName={}, 切片数={}", file.getOriginalFilename(), chapterRoots.size());
+                log.info("扁平字符切片: docName={}, 切片数={}", docName, chapterRoots.size());
             }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         } catch (Exception e) {
             log.error("文档解析失败: {}", e.getMessage(), e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文档解析失败: " + e.getMessage());
@@ -119,25 +142,35 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
         // 统计总节点数（含子节点）
         int totalNodes = countNodes(chapterRoots);
 
-        // 上传文件到MinIO
+        // 上传文件到MinIO（同路径覆盖旧文件，节省存储）
         UploadResult uploadResult;
         try {
-            String objectName = "knowledge/" + kbId + "/" + file.getOriginalFilename();
+            String objectName = "knowledge/" + kbId + "/" + docName;
             uploadResult = fileStorageService.upload(file, objectName);
         } catch (Exception e) {
             log.error("文件上传失败: {}", e.getMessage(), e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文件上传失败: " + e.getMessage());
         }
 
-        // 创建文档记录
+        // 分支 C：hash 不同，触发重建——先软删旧 doc 和旧切片
+        if (oldDoc != null) {
+            log.info("[upload] 检测到内容变更，触发重建: kbId={}, docName={}, oldDocId={}", kbId, docName, oldDoc.getId());
+            softDeleteChunksOfDoc(oldDoc.getId());
+            knowledgeDocMapper.deleteById(oldDoc.getId());  // 逻辑删除（@TableLogic 自动转 UPDATE）
+        } else {
+            log.info("[upload] 新建文档: kbId={}, docName={}", kbId, docName);
+        }
+
+        // 插入新文档记录（带 contentHash）
         KnowledgeDoc knowledgeDoc = new KnowledgeDoc();
         knowledgeDoc.setKbId(kbId);
-        knowledgeDoc.setDocName(file.getOriginalFilename());
+        knowledgeDoc.setDocName(docName);
         knowledgeDoc.setDocFormat(fileFormat);
         knowledgeDoc.setDocSize(file.getSize());
         knowledgeDoc.setFilePath(uploadResult.getObjectName());
         knowledgeDoc.setDataSource("upload");
         knowledgeDoc.setChunkCount(totalNodes);
+        knowledgeDoc.setContentHash(contentHash);
 
         knowledgeDocMapper.insert(knowledgeDoc);
 
@@ -175,6 +208,9 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
             LambdaQueryWrapper<KnowledgeChunk> chunkWrapper = new LambdaQueryWrapper<>();
             chunkWrapper.eq(KnowledgeChunk::getDocId, docId);
             knowledgeChunkMapper.delete(chunkWrapper);
+
+            // 同步清理 MinIO 物理文件：失败仅记 WARN，不影响已完成的 DB 软删
+            deleteMinioFileSafely(doc.getFilePath(), docId);
 
             log.info("文档删除成功: docId={}", docId);
         }
@@ -401,5 +437,62 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
             return fileName.substring(lastDotIndex + 1).toLowerCase();
         }
         return "txt";
+    }
+
+    /**
+     * 计算字节数组的 SHA256，返回 64 字符小写 hex。
+     * HexFormat 是 Java 17+ 的标准 API，比 String.format("%02x") 快一个数量级。
+     */
+    private String sha256Hex(byte[] bytes) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(bytes);
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            // SHA-256 是 JDK 标准算法，理论上不可能不存在
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "SHA-256 算法不可用: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 按 (kbId, docName) 查找未删除的旧文档。
+     * 依赖 KnowledgeDoc 上的 @TableLogic 自动过滤 deleted=1。
+     */
+    private KnowledgeDoc findActiveByName(Long kbId, String docName) {
+        LambdaQueryWrapper<KnowledgeDoc> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(KnowledgeDoc::getKbId, kbId)
+                .eq(KnowledgeDoc::getDocName, docName);
+        return knowledgeDocMapper.selectOne(wrapper);
+    }
+
+    /**
+     * 软删某文档下的全部切片（@TableLogic 自动转 UPDATE SET deleted=1）。
+     */
+    private void softDeleteChunksOfDoc(Long docId) {
+        LambdaQueryWrapper<KnowledgeChunk> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(KnowledgeChunk::getDocId, docId);
+        knowledgeChunkMapper.delete(wrapper);
+    }
+
+    /**
+     * 安全删除 MinIO 文件：失败仅记 WARN 日志，不抛异常。
+     *
+     * <p>用于 {@link #deleteDocuments} 流程——DB 软删已成功后调用本方法，
+     * 即使 MinIO 故障也不回滚事务。残留文件留作后续后台清理 Job 兜底。
+     *
+     * <p>MinIO {@code removeObject} 本身幂等（对象不存在不抛异常），
+     * 这里 catch 是为了防御 MinIO 连接故障、权限错误等基础设施问题。
+     */
+    private void deleteMinioFileSafely(String objectName, Long docId) {
+        if (objectName == null || objectName.isBlank()) {
+            log.debug("[delete] file_path 为空，跳过 MinIO 删除: docId={}", docId);
+            return;
+        }
+        try {
+            fileStorageService.delete(objectName);
+        } catch (Exception e) {
+            log.warn("[delete] MinIO 文件删除失败，DB 已软删，留作后台清理: objectName={}, docId={}, error={}",
+                    objectName, docId, e.getMessage());
+        }
     }
 }

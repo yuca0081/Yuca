@@ -3,6 +3,8 @@ package org.yuca.knowledge.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.yuca.knowledge.document.MarkdownChapterTreeBuilder;
+import org.yuca.knowledge.document.parser.DocumentParserRegistry;
+import org.yuca.knowledge.document.parser.MarkdownTxtParser;
 
 /**
  * 知识库模块配置。
@@ -19,5 +21,24 @@ public class KnowledgeConfig {
     @Bean
     public MarkdownChapterTreeBuilder markdownChapterTreeBuilder() {
         return new MarkdownChapterTreeBuilder();
+    }
+
+    /**
+     * 文档解析器注册表：按扩展名路由到 md / txt / pdf / docx 等解析器。
+     *
+     * <p>MarkdownTxtParser / PdfParser / DocxParser 通过 {@code @Component} 自动注册，
+     * 这里把它们按扩展名装配到 registry，未知扩展名降级到 MarkdownTxtParser。
+     */
+    @Bean
+    public DocumentParserRegistry documentParserRegistry(
+            MarkdownTxtParser markdownTxtParser,
+            org.yuca.knowledge.document.parser.PdfParser pdfParser,
+            org.yuca.knowledge.document.parser.DocxParser docxParser) {
+        DocumentParserRegistry registry = new DocumentParserRegistry(markdownTxtParser);
+        registry.register("md", markdownTxtParser);
+        registry.register("txt", markdownTxtParser);
+        registry.register("pdf", pdfParser);
+        registry.register("docx", docxParser);
+        return registry;
     }
 }

@@ -43,7 +43,9 @@ public class HistoryEnhancer implements ChatEnhancer {
             return request;
         }
 
-        List<ChatMessage> history = historyStore.getMessages(sessionId);
+        // 用 getActiveMessages：自动从最新 SUMMARY 处截取，跳过已被摘要取代的早期消息
+        // SummaryEnhancer 未启用或无 SUMMARY 时，getActiveMessages 等价于 getMessages
+        List<ChatMessage> history = historyStore.getActiveMessages(sessionId);
         List<ChatMessage> trimmed = history.size() > maxMessages
                 ? history.subList(history.size() - maxMessages, history.size())
                 : history;

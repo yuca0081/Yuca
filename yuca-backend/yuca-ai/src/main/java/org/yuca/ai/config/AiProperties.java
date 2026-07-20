@@ -15,6 +15,7 @@ public class AiProperties {
     private EmbeddingConfig embedding = new EmbeddingConfig();
     private RerankConfig rerank = new RerankConfig();
     private IntentClassifierConfig intentClassifier = new IntentClassifierConfig();
+    private SummaryConfig summary = new SummaryConfig();
 
     @Data
     public static class ProviderConfig {
@@ -51,6 +52,29 @@ public class AiProperties {
          * 小模型名（DashScope）。复用 {@link ProviderConfig#getBaseUrl()} 和
          * {@link ProviderConfig#getApiKey()} 的 dashscope 凭证，不独立配置。
          * 推荐 qwen-turbo——便宜快，对短文本意图分类准确率足够。
+         */
+        private String modelName = "qwen-turbo";
+    }
+
+    @Data
+    public static class SummaryConfig {
+        /**
+         * 是否启用历史摘要压缩。关闭后 HistoryEnhancer 走原固定窗口截断路径（加载全量 + trim 50）。
+         */
+        private boolean enabled = true;
+        /**
+         * 触发阈值：active 消息数（已排除被早期 SUMMARY 取代的部分）超过此值才触发新一轮摘要。
+         * 选 20 是经验值——低于此触发过于频繁，高于此上下文 token 压力大。
+         */
+        private int threshold = 20;
+        /**
+         * 触发后保留最近 N 条 raw 消息不参与摘要，保证近期决策原文留存供 LLM 精细参考。
+         * 其余 (active.size - keepRecent) 条并入新 SUMMARY。
+         */
+        private int keepRecent = 10;
+        /**
+         * 小模型名（DashScope）。复用 dashscope.base-url + dashscope.api-key。
+         * 摘要任务对模型推理能力要求不高，qwen-turbo 性价比合适。
          */
         private String modelName = "qwen-turbo";
     }

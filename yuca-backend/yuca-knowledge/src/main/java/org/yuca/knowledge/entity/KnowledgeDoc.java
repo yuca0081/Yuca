@@ -62,6 +62,12 @@ public class KnowledgeDoc {
     private Integer chunkCount;
 
     /**
+     * 文件原始字节 SHA256 的 hex 编码（64 字符），用于增量更新时识别"内容是否变化"。
+     * 旧记录可能为 NULL。
+     */
+    private String contentHash;
+
+    /**
      * 创建时间
      */
     @TableField(fill = FieldFill.INSERT)

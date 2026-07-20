@@ -6,6 +6,7 @@ import org.yuca.ai.agent.enhancer.ChatEnhancer;
 import org.yuca.ai.agent.enhancer.HistoryEnhancer;
 import org.yuca.ai.agent.enhancer.IntentRecognitionEnhancer;
 import org.yuca.ai.agent.enhancer.RagEnhancer;
+import org.yuca.ai.agent.enhancer.SummaryEnhancer;
 import org.yuca.ai.agent.enhancer.SystemPromptEnhancer;
 import org.yuca.ai.config.AiProperties;
 import org.yuca.ai.core.model.ChatModel;
@@ -76,6 +77,17 @@ public class AgentFactory {
         String systemPrompt = buildSystemPrompt();
 
         List<ChatEnhancer> enhancers = new ArrayList<>();
+
+        // 历史摘要压缩（order=-2，比意图识别更先跑）：触发时把最早一批消息压成 SUMMARY 持久化，
+        // HistoryEnhancer 接下来通过 getActiveMessages 只加载 [SUMMARY, ...最近 raw]
+        if (aiProperties.getSummary().isEnabled()) {
+            AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
+            ChatModel summaryModel = new QwenChatModel(
+                    dashscope.getBaseUrl(),
+                    dashscope.getApiKey(),
+                    aiProperties.getSummary().getModelName());
+            enhancers.add(new SummaryEnhancer(historyStore, aiProperties.getSummary(), summaryModel));
+        }
 
         // 意图识别（order=-1，最先跑）：写 context.intent 供 RagEnhancer 路由
         // 失败/未启用时 RagEnhancer 走原路径，行为等价于重构前
