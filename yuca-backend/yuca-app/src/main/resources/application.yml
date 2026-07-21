@@ -67,7 +67,6 @@ server:
       max: 200
       min-spare: 10
     connection-timeout: 300000
-    connection-max-retention-time: 300s
     # 启用SSE流式传输的关键配置
     processor-cache: 200
     # 禁用写缓冲，确保SSE实时发送
@@ -142,8 +141,3 @@ springdoc:
   packages-to-scan: org.yuca.yuca.user.controller, org.yuca.yuca.infrastructure.storage.controller, org.yuca.yuca.knowledge.controller, org.yuca.yuca.assistant.controller, org.yuca.diet.controller
   default-consumes-media-type: application/json
   default-produces-media-type: application/json
-
-# 小助手模块配置
-assistant:
-  max-context-messages: 20      # 上下文消息最大数量
-  stream-timeout: 60000         # SSE流式响应超时时间（毫秒）

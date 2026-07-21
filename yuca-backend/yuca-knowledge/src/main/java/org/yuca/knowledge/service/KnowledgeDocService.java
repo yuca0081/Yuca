@@ -9,6 +9,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.yuca.ai.agent.Agent;
+import org.yuca.ai.agent.AgentFactory;
+import org.yuca.ai.config.AiProperties;
+import org.yuca.ai.core.message.UserMessage;
+import org.yuca.ai.core.model.ChatRequest;
+import org.yuca.ai.core.model.ChatResponse;
 import org.yuca.ai.embedding.EmbeddingService;
 import org.yuca.knowledge.document.ChapterNode;
 import org.yuca.knowledge.document.Document;
@@ -68,6 +74,12 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
 
     @Autowired
     private DocumentParserRegistry documentParserRegistry;
+
+    @Autowired
+    private AgentFactory agentFactory;
+
+    @Autowired
+    private AiProperties aiProperties;
 
     private static final long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
@@ -327,7 +339,8 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
      * 章节树切片存储：
      * <ol>
      *   <li>DFS 前序遍历收集所有节点</li>
-     *   <li>按节点 embeddingText()（title + breadcrumb + content）批量生成向量</li>
+     *   <li>为章节节点（headingLevel &gt; 0）调 LLM 生成摘要；扁平切片跳过</li>
+     *   <li>按节点 embeddingText()（优先 summary，降级 title + breadcrumb + content）批量生成向量</li>
      *   <li>DFS 前序递归插入，MyBatis-Plus 回填 id 用于子节点的 parent_id</li>
      * </ol>
      */
@@ -349,7 +362,10 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
             indexMap.put(all.get(i), i);
         }
 
-        // 2. 批量生成嵌入（分批规避 DashScope 单次 25 条上限）
+        // 1.5 为章节节点生成 LLM 摘要（扁平切片 headingLevel=0 跳过）
+        generateSummaries(all);
+
+        // 2. 批量生成嵌入（embeddingText 此时优先用 summary，分批规避 DashScope 单次 25 条上限）
         List<String> embeddingTexts = all.stream().map(ChapterNode::embeddingText).toList();
         List<Double[]> embeddings = embedInBatches(embeddingTexts);
 
@@ -386,6 +402,7 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
             chunk.setTitle(node.getTitle());
             chunk.setHeadingLevel((short) node.getHeadingLevel());
             chunk.setBreadcrumb(node.getBreadcrumb());
+            chunk.setSummary(node.getSummary());  // LLM 摘要；失败降级时为 null
             chunk.setLineStart(node.getLineStart());
             chunk.setLineEnd(node.getLineEnd());
         }
@@ -408,6 +425,64 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
             all.addAll(embeddingService.embedBatchAsDoubleArrays(batch));
         }
         return all;
+    }
+
+    /**
+     * 为所有 headingLevel > 0 的章节节点生成 LLM 摘要。
+     *
+     * <p>扁平切片（headingLevel=0）跳过——已是固定 100 字小段，再压缩意义不大且增加 N 次 LLM 调用成本。
+     *
+     * <p>失败降级：单个节点摘要失败时仅记 WARN 日志，{@code summary} 保持 null，
+     * 后续 {@link ChapterNode#embeddingText()} 会自动走 title + breadcrumb + content 原文路径。
+     */
+    private void generateSummaries(List<ChapterNode> nodes) {
+        int success = 0, skipped = 0, failed = 0;
+        for (ChapterNode node : nodes) {
+            if (node.getHeadingLevel() <= 0) {
+                skipped++;
+                continue;
+            }
+            try {
+                String summary = summarizeNode(node);
+                if (summary != null && !summary.isBlank()) {
+                    node.setSummary(summary);
+                    success++;
+                } else {
+                    failed++;
+                }
+            } catch (Exception e) {
+                log.warn("[upload] 章节摘要生成失败，降级用原文: title={}, error={}",
+                        node.getTitle(), e.getMessage());
+                failed++;
+            }
+        }
+        log.info("[upload] 摘要生成完成: total={}, success={}, skipped={}, failed={}",
+                nodes.size(), success, skipped, failed);
+    }
+
+    /** 调用单轮 Agent 生成单节点摘要。复用 {@code summary.modelName}（qwen-turbo） */
+    private String summarizeNode(ChapterNode node) {
+        String prompt = buildSummaryPrompt(node);
+        ChatRequest req = ChatRequest.builder()
+                .messages(List.of(UserMessage.from(prompt)))
+                .build();
+        Agent agent = agentFactory.simpleAgent(aiProperties.getSummary().getModelName());
+        ChatResponse resp = agent.execute(req);
+        return resp.aiMessage() == null ? null : resp.aiMessage().text();
+    }
+
+    private String buildSummaryPrompt(ChapterNode node) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("请把以下章节内容压缩为不超过 200 字的摘要，")
+                .append("保留关键信息和专有名词，不要解释或评论：\n\n");
+        if (node.getTitle() != null) {
+            sb.append("标题：").append(node.getTitle()).append("\n");
+        }
+        if (node.getBreadcrumb() != null) {
+            sb.append("路径：").append(node.getBreadcrumb()).append("\n");
+        }
+        sb.append("内容：\n").append(node.getContent() == null ? "" : node.getContent());
+        return sb.toString();
     }
 
     /**

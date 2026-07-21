@@ -34,6 +34,9 @@ public class ChapterNode {
     /** 独占式切片正文（自己标题后到下一任意级别标题前的内容） */
     private String content;
 
+    /** LLM 生成的章节摘要（≤200 字）。扁平切片（headingLevel=0）不填，保持 null */
+    private String summary;
+
     /** 源文件起始行号（含），从 1 开始计数 */
     private int lineStart;
 
@@ -54,18 +57,28 @@ public class ChapterNode {
     /**
      * 计算 embedding 源文本。
      *
-     * <p>null 安全：非 markdown 平切片（headingLevel=0）没有 title/breadcrumb，
-     * 此时只返回 content，避免拼出 "null\nnull\n..." 字符串污染 embedding。
+     * <p>优先用 LLM 摘要（{@link #summary}）：解决短节点信号弱、长节点稀释问题。
+     * 摘要为空时降级到原 title + breadcrumb + content，保持向后兼容（含扁平切片的 headingLevel=0 路径）。
+     *
+     * <p>无论是摘要路径还是降级路径，都先拼 title + breadcrumb——保留结构上下文让向量更聚焦。
+     *
+     * <p>null 安全：扁平切片没有 title/breadcrumb，此时相关字段为 null，
+     * {@code appendIfNonEmpty} 守卫避免拼出 "null\nnull\n..." 字符串污染 embedding。
      */
     public String embeddingText() {
         StringBuilder sb = new StringBuilder();
-        if (title != null && !title.isEmpty()) {
-            sb.append(title).append("\n");
+        appendIfNonEmpty(sb, title);
+        appendIfNonEmpty(sb, breadcrumb);
+        String body = (summary != null && !summary.isEmpty()) ? summary : content;
+        if (body != null) {
+            sb.append(body);
         }
-        if (breadcrumb != null && !breadcrumb.isEmpty()) {
-            sb.append(breadcrumb).append("\n");
-        }
-        sb.append(content);
         return sb.toString();
+    }
+
+    private void appendIfNonEmpty(StringBuilder sb, String line) {
+        if (line != null && !line.isEmpty()) {
+            sb.append(line).append("\n");
+        }
     }
 }

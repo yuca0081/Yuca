@@ -42,14 +42,35 @@ public class AgentFactory {
      * 适用于单轮对话，如生成标题等
      */
     public Agent simpleAgent() {
-        return simpleAgent(new ChatContext());
+        return simpleAgent(new ChatContext(), null);
     }
 
     public Agent simpleAgent(ChatContext context) {
+        return simpleAgent(context, null);
+    }
+
+    /**
+     * 创建简单 Agent（可指定模型），用于成本敏感的批量单轮场景。
+     *
+     * <p>典型用法：章节摘要生成（{@code simpleAgent("qwen-turbo")}）、文本分类、
+     * 占位标题生成等"输入 prompt → 输出文本"的一次性任务。
+     *
+     * @param context   请求上下文，通常用 {@code new ChatContext()}
+     * @param modelName 模型名（如 "qwen-turbo"），null 时退回到默认模型
+     */
+    public Agent simpleAgent(ChatContext context, String modelName) {
+        ChatModel model = (modelName == null) ? buildChatModel() : buildChatModel(modelName);
         return Agent.builder()
-                .chatModel(buildChatModel())
+                .chatModel(model)
                 .context(context)
                 .build();
+    }
+
+    /**
+     * 便捷重载：单轮 Agent + 指定模型 + 默认上下文。
+     */
+    public Agent simpleAgent(String modelName) {
+        return simpleAgent(new ChatContext(), modelName);
     }
 
 
@@ -123,6 +144,11 @@ public class AgentFactory {
     private ChatModel buildChatModel() {
         AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
         return new QwenChatModel(dashscope.getBaseUrl(), dashscope.getApiKey(), dashscope.getModelName());
+    }
+
+    private ChatModel buildChatModel(String modelName) {
+        AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
+        return new QwenChatModel(dashscope.getBaseUrl(), dashscope.getApiKey(), modelName);
     }
 
     public StreamingChatModel buildStreamingChatModel() {
