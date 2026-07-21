@@ -134,7 +134,6 @@ export default function Wiki() {
   const handleUpload = async (file: File) => {
     if (!activeKbId) return
     await uploadDocument(activeKbId, file)
-    await loadDocs(activeKbId)
   }
 
   const handleSelectDoc = async (doc: KnowledgeDoc) => {
@@ -221,7 +220,10 @@ export default function Wiki() {
       />
       <UploadDocDialog
         open={uploadOpen}
-        onOpenChange={setUploadOpen}
+        onOpenChange={(open) => {
+          setUploadOpen(open)
+          if (!open && activeKbId) loadDocs(activeKbId)
+        }}
         onSubmit={handleUpload}
       />
       <ConfirmDialog

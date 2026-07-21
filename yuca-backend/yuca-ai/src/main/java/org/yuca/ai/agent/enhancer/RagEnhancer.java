@@ -9,6 +9,7 @@ import org.yuca.ai.core.model.ChatRequest;
 import org.yuca.ai.core.model.ChatResponse;
 import org.yuca.ai.retrieval.RetrievalService;
 import org.yuca.ai.retrieval.RetrievedChunk;
+import org.yuca.ai.retrieval.TokenBudgetAssembler;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,11 +22,16 @@ import java.util.stream.Collectors;
 public class RagEnhancer implements ChatEnhancer {
 
     private final RetrievalService retrievalService;
+    private final TokenBudgetAssembler tokenBudgetAssembler;
     private final Long kbId;
     private final int topN;
 
-    public RagEnhancer(RetrievalService retrievalService, Long kbId, int topN) {
+    public RagEnhancer(RetrievalService retrievalService,
+                       TokenBudgetAssembler tokenBudgetAssembler,
+                       Long kbId,
+                       int topN) {
         this.retrievalService = retrievalService;
+        this.tokenBudgetAssembler = tokenBudgetAssembler;
         this.kbId = kbId;
         this.topN = topN;
     }
@@ -56,7 +62,7 @@ public class RagEnhancer implements ChatEnhancer {
             return request;
         }
 
-        String ragContext = buildRagContext(chunks);
+        String ragContext = tokenBudgetAssembler.assemble(chunks);
         List<ChatMessage> messages = new ArrayList<>();
         messages.add(UserMessage.from(ragContext));
         messages.addAll(request.messages());
@@ -81,19 +87,5 @@ public class RagEnhancer implements ChatEnhancer {
             }
         }
         return null;
-    }
-
-    private String buildRagContext(List<RetrievedChunk> chunks) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("以下是从知识库中检索到的参考资料，请基于这些内容回答用户的问题。");
-        sb.append("如果参考资料中没有相关信息，请根据你的知识回答，并说明这不是来自知识库的内容。\n\n");
-
-        for (int i = 0; i < chunks.size(); i++) {
-            RetrievedChunk chunk = chunks.get(i);
-            sb.append("【参考资料 ").append(i + 1).append("】\n");
-            sb.append(chunk.getContent()).append("\n\n");
-        }
-
-        return sb.toString();
     }
 }

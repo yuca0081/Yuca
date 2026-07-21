@@ -15,6 +15,7 @@ import org.yuca.ai.core.provider.qwen.QwenChatModel;
 import org.yuca.ai.core.provider.qwen.QwenStreamingChatModel;
 import org.yuca.ai.history.ChatHistoryStore;
 import org.yuca.ai.retrieval.RetrievalService;
+import org.yuca.ai.retrieval.TokenBudgetAssembler;
 import org.yuca.ai.skill.SkillRegistry;
 import org.yuca.ai.tool.Calculator;
 import org.yuca.ai.tool.SkillTool;
@@ -36,6 +37,7 @@ public class AgentFactory {
     private final SkillRegistry skillRegistry;
     private final SkillTool skillTool;
     private final RetrievalService retrievalService;
+    private final TokenBudgetAssembler tokenBudgetAssembler;
 
     /**
      * 创建简单 Agent（无历史、无工具、无增强器）
@@ -122,7 +124,7 @@ public class AgentFactory {
         }
 
         if (kbId != null) {
-            enhancers.add(new RagEnhancer(retrievalService, kbId, 5));
+            enhancers.add(new RagEnhancer(retrievalService, tokenBudgetAssembler, kbId, 5));
         }
         enhancers.add(new SystemPromptEnhancer(systemPrompt));
         enhancers.add(new HistoryEnhancer(historyStore, 50));

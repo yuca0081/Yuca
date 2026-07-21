@@ -53,4 +53,17 @@ public interface KnowledgeChunkMapper extends BaseMapper<KnowledgeChunk> {
     List<KnowledgeChunk> searchByKeyword(@Param("kbId") Long kbId,
                                           @Param("query") String query,
                                           @Param("topK") Integer topK);
+
+    /**
+     * 按 parent_id 查子节点（用于保守父子注入）。
+     *
+     * <p>按 chunk_index 升序取前 limit 条，保证"前两个子节点"语义稳定。
+     * 复用 idx_chunk_parent 索引（DDL 中已建）。
+     *
+     * @param parentId 父节点 chunk id
+     * @param limit    最多返回条数
+     * @return 子节点列表（按 chunk_index 升序）
+     */
+    List<KnowledgeChunk> selectChildrenByParentId(@Param("parentId") Long parentId,
+                                                   @Param("limit") Integer limit);
 }

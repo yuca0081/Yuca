@@ -15,6 +15,13 @@
         <result column="created_at" property="createdAt"/>
         <result column="updated_at" property="updatedAt"/>
         <result column="deleted" property="deleted"/>
+        <result column="title" property="title"/>
+        <result column="heading_level" property="headingLevel"/>
+        <result column="breadcrumb" property="breadcrumb"/>
+        <result column="parent_id" property="parentId"/>
+        <result column="summary" property="summary"/>
+        <result column="line_start" property="lineStart"/>
+        <result column="line_end" property="lineEnd"/>
     </resultMap>
 
     <!-- 向量相似度搜索（限定知识库） -->
@@ -59,6 +66,20 @@
           AND fts_tokens @@ query
         ORDER BY ts_rank_cd(fts_tokens, query) DESC
         LIMIT #{topK}
+    </select>
+
+    <!-- 按 parent_id 查子节点（保守父子注入用，复用 idx_chunk_parent 索引） -->
+    <select id="selectChildrenByParentId" resultMap="BaseResultMap">
+        SELECT
+            id, doc_id, kb_id, content, embedding, chunk_index, is_active,
+            created_at, updated_at, deleted,
+            title, heading_level, breadcrumb, parent_id, summary, line_start, line_end
+        FROM knowledge_chunk
+        WHERE deleted = FALSE
+          AND is_active = TRUE
+          AND parent_id = #{parentId}
+        ORDER BY chunk_index ASC
+        LIMIT #{limit}
     </select>
 
 </mapper>

@@ -5,6 +5,7 @@ spring:
   data:
     redis:
       host: 47.94.247.12
+      port: 6379
 
 minio:
   endpoint: http://47.94.247.12:9000

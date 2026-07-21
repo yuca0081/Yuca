@@ -83,8 +83,8 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
 
     private static final long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
-    /** DashScope text-embedding-v3 单次批量上限 25 条，超出需自行分批 */
-    private static final int EMBED_BATCH_SIZE = 25;
+    /** DashScope text-embedding-v3 单次批量上限 10 条，超出需自行分批 */
+    private static final int EMBED_BATCH_SIZE = 10;
 
     /**
      * 上传文档并处理
@@ -416,7 +416,7 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
         }
     }
 
-    /** 分批调 embedding API，规避 DashScope text-embedding-v3 单次 25 条上限 */
+    /** 分批调 embedding API，规避 DashScope text-embedding-v3 单次 10 条上限 */
     private List<Double[]> embedInBatches(List<String> texts) {
         List<Double[]> all = new ArrayList<>(texts.size());
         for (int i = 0; i < texts.size(); i += EMBED_BATCH_SIZE) {
