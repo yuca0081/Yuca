@@ -20,14 +20,19 @@ public class EmbeddingService {
         AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
         AiProperties.EmbeddingConfig embeddingConfig = aiProperties.getEmbedding();
 
+        // embedding 优先用自己的 base-url（独立 endpoint 场景），未配置时 fallback 到 dashscope.baseUrl
+        String baseUrl = (embeddingConfig.getBaseUrl() != null && !embeddingConfig.getBaseUrl().isBlank())
+                ? embeddingConfig.getBaseUrl()
+                : dashscope.getBaseUrl();
+
         this.embeddingModel = new QwenEmbeddingModel(
-                dashscope.getBaseUrl(),
+                baseUrl,
                 dashscope.getApiKey(),
                 embeddingConfig.getModelName());
         this.dimension = embeddingConfig.getDimension();
 
-        log.info("EmbeddingService 初始化完成: model={}, dimension={}",
-                embeddingConfig.getModelName(), dimension);
+        log.info("EmbeddingService 初始化完成: baseUrl={}, model={}, dimension={}",
+                baseUrl, embeddingConfig.getModelName(), dimension);
     }
 
     /**

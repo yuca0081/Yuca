@@ -16,12 +16,12 @@ import java.util.List;
 /**
  * 文档切片策略路由（#11：质量评分与智能路由）。
  *
- * <p>基于 {@link QualityScore#getTier()} 选切片策略：
- * <ul>
- *   <li><b>Clean</b>：md + 有标题 → 章节树；非 md → 段落切片</li>
- *   <li><b>Decent</b>：段落切片（语义边界优于固定字符）</li>
- *   <li><b>Garbage</b>：字符切片兜底 + WARN 日志（#12 OCR 来时把这里改成调 OcrParser 后重新评分）</li>
- * </ul>
+ * <p>路由优先级：
+ * <ol>
+ *   <li><b>md + 有标题</b> → 章节树切片（与 tier 解耦，避免 md 短行噪声误判）</li>
+ *   <li><b>Garbage</b> → 字符切片兜底 + WARN 日志（#12 OCR 来时把这里改成调 OcrParser 后重新评分）</li>
+ *   <li><b>Clean / Decent</b> → 段落切片（语义边界优于固定字符）</li>
+ * </ol>
  *
  * <p>开关：{@code yuca.knowledge.quality.enabled=false} 时走原硬编码路径
  * （md + 有标题 → 章节树，否则字符切片），行为等价于重构前。
@@ -47,6 +47,17 @@ public class DocumentRoutingService {
     /**
      * 路由入口：根据开关 + 评分选切片策略。
      *
+     * <p>路由优先级（修复 md 文档被误判 Decent 导致段落切片把标题与正文切开的问题）：
+     * <ol>
+     *   <li>md + 有标题 → 章节树切片（与 tier 解耦）</li>
+     *   <li>Garbage → 字符切片兜底</li>
+     *   <li>Clean / Decent → 段落切片</li>
+     * </ol>
+     *
+     * <p>md 文档解析失败率极低，质量评分主要意义在 PDF/docx（识别扫描件走 OCR 兜底）。
+     * md 单行通常较短（bullet/空行多）会拖累 avgLineLength，让 overall 跌到 Decent 区间，
+     * 但这并不代表文档质量差——md 的结构信息已经由标题层级表达，应该走章节树。
+     *
      * @param content    解析后的纯文本
      * @param fileFormat 文件扩展名（小写）
      * @param score      质量评分（{@code enabled=false} 时可传 null）
@@ -58,11 +69,18 @@ public class DocumentRoutingService {
             return routeLegacy(content, fileFormat);
         }
 
+        // 优先级 1：md + 有标题 → 章节树（与 tier 解耦）
+        if ("md".equalsIgnoreCase(fileFormat) && markdownChapterTreeBuilder.hasHeadings(content)) {
+            log.info("[route] 走章节树切片（md + 有标题，与 tier 解耦）: tier={}, overall={}",
+                    score.getTier(), score.getOverall());
+            return markdownChapterTreeBuilder.build(content);
+        }
+
+        // 其余格式按 tier 路由
         return switch (score.getTier()) {
-            case QualityScore.TIER_CLEAN -> routeClean(content, fileFormat);
-            case QualityScore.TIER_DECENT -> {
-                log.info("[route] 走段落切片: overall={}, textRatio={}",
-                        score.getOverall(), score.getTextRatio());
+            case QualityScore.TIER_CLEAN, QualityScore.TIER_DECENT -> {
+                log.info("[route] 走段落切片: tier={}, overall={}, textRatio={}",
+                        score.getTier(), score.getOverall(), score.getTextRatio());
                 yield paragraphSplitter.split(content);
             }
             case QualityScore.TIER_GARBAGE -> {
@@ -76,19 +94,6 @@ public class DocumentRoutingService {
                 yield splitFlat(content);
             }
         };
-    }
-
-    /**
-     * Clean 路由：md + 有标题 → 章节树；否则段落切片。
-     */
-    private List<ChapterNode> routeClean(String content, String fileFormat) {
-        if ("md".equalsIgnoreCase(fileFormat) && markdownChapterTreeBuilder.hasHeadings(content)) {
-            List<ChapterNode> roots = markdownChapterTreeBuilder.build(content);
-            log.info("[route] 走章节树切片: fileFormat=md, roots={}", roots.size());
-            return roots;
-        }
-        log.info("[route] 走段落切片: fileFormat={}", fileFormat);
-        return paragraphSplitter.split(content);
     }
 
     /**

@@ -108,14 +108,15 @@ yuca:
     # API Key 通过环境变量或 application-local.yml 注入，勿硬编码提交
     dashscope:
       base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-      model-name: glm-5.1
+      model-name: glm-5.2
       api-key: ${DASHSCOPE_API_KEY:}
     openai:
       base-url: https://api.deepseek.com
       model-name: deepseek-chat
       api-key: ${DEEPSEEK_API_KEY:}
     embedding:
-      model-name: text-embedding-v3
+      base-url: https://llm-xg587w7oxnga5vc5.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+      model-name: qwen3.7-text-embedding
       dimension: 1024
     rerank:
       enabled: true
@@ -124,12 +125,12 @@ yuca:
       candidate-pool-size: 20
     intent-classifier:
       enabled: true
-      model-name: qwen-turbo   # 复用 dashscope.base-url + dashscope.api-key
+      model-name: qwen3.7-max   # 复用 dashscope.base-url + dashscope.api-key
     summary:
       enabled: true
       threshold: 20            # active 消息数 > 此值时触发摘要
       keep-recent: 10          # 摘要时保留最近 N 条原文不参与压缩
-      model-name: qwen-turbo   # 复用 dashscope.base-url + dashscope.api-key
+      model-name: qwen3.7-max   # 复用 dashscope.base-url + dashscope.api-key
   knowledge:                   # 知识库模块配置（与 yuca.ai 同级）
     query-expansion:
       enabled: true            # #8 查询扩展：关时 BM25 路直接用原 query

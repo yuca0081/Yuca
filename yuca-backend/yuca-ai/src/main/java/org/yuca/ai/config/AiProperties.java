@@ -27,6 +27,13 @@ public class AiProperties {
 
     @Data
     public static class EmbeddingConfig {
+        /**
+         * Embedding 专用 base-url。
+         * <p>用于 embedding 模型部署在独立 endpoint（如阿里云 MaaS 专属服务）时与 LLM 解耦。
+         * 留空时 {@code EmbeddingService} 会 fallback 到 {@code dashscope.baseUrl}，
+         * 兼容 embedding 与 LLM 共用 DashScope 端点的旧部署。
+         */
+        private String baseUrl;
         private String modelName = "text-embedding-v3";
         private int dimension = 1024;
     }
