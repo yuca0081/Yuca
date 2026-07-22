@@ -54,12 +54,15 @@
     </select>
 
     <!-- 关键词全文搜索（基于 zhparser 中文分词） -->
+    <!-- 用 websearch_to_tsquery 替代 plainto_tsquery：前者支持 OR/否定/短语语法，
+         使 #8 查询扩展拼接的 "原query OR 同义词" 能正确生成 OR tsquery。
+         二者走同一 'chinese' 配置 = 同一套 zhparser 分词，token 化行为一致 -->
     <select id="searchByKeyword" resultMap="BaseResultMap">
         SELECT
             id, doc_id, kb_id, content, embedding, chunk_index, is_active,
             created_at, updated_at, deleted
         FROM knowledge_chunk,
-             plainto_tsquery('chinese', #{query}) query
+             websearch_to_tsquery('chinese', #{query}) query
         WHERE deleted = FALSE
           AND is_active = TRUE
           AND kb_id = #{kbId}

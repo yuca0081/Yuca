@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.yuca.knowledge.mapper.KnowledgeVocabularyMapper">
+
+    <resultMap id="BaseResultMap" type="org.yuca.knowledge.entity.KnowledgeVocabulary">
+        <id column="id" property="id"/>
+        <result column="kb_id" property="kbId"/>
+        <result column="doc_id" property="docId"/>
+        <result column="term" property="term"/>
+        <result column="embedding" property="embedding"
+                typeHandler="org.yuca.infrastructure.handle.PGVectorTypeHandler"/>
+        <result column="source" property="source"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <!-- 向量相似度搜索（限定知识库，复用 idx_vocab_embedding_hnsw 索引） -->
+    <select id="searchSimilar" resultMap="BaseResultMap">
+        SELECT
+            id, kb_id, doc_id, term, embedding, source,
+            created_at, updated_at, deleted
+        FROM knowledge_vocabulary
+        WHERE deleted = FALSE
+          AND kb_id = #{kbId}
+          AND embedding IS NOT NULL
+          AND 1 - (embedding &lt;=&gt; CAST(#{queryEmbedding} AS vector)) &gt;= #{threshold}
+        ORDER BY embedding &lt;=&gt; CAST(#{queryEmbedding} AS vector)
+        LIMIT #{topK}
+    </select>
+
+</mapper>

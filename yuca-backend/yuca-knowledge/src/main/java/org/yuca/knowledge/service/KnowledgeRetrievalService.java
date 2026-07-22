@@ -18,7 +18,9 @@ import java.util.*;
  *
  * <p>四级流水线：
  * <ol>
- *   <li>双路召回（向量 + 关键词，Bi-Encoder——快但粗）</li>
+ *   <li>双路召回（向量 + 关键词，Bi-Encoder——快但粗）。关键词路会先调
+ *       {@link QueryExpansionService} 基于 embedding 找 top-K 同义词拼成 OR 串，
+ *       解决 BM25 无同义词覆盖的问题（如查"裁员"找不到"裁员优化"）</li>
  *   <li>RRF 融合（加权倒数排名）</li>
  *   <li>Cross-Encoder 精排（可选——慢但准，对 MRR 提升最大）</li>
  *   <li>保守父子注入（按 parent_id 扩展高分节点的子节点，分数 × 0.5 折扣）</li>
@@ -35,6 +37,7 @@ public class KnowledgeRetrievalService implements RetrievalService {
     private final KnowledgeChunkMapper chunkMapper;
     private final EmbeddingService embeddingService;
     private final ObjectProvider<RerankService> rerankServiceProvider;
+    private final QueryExpansionService queryExpansionService;
 
     /** 召回阶段每路 topK（reranker 需要更大候选池，从 10 提升到 20） */
     private static final int SEARCH_TOP_K = 20;
@@ -53,11 +56,15 @@ public class KnowledgeRetrievalService implements RetrievalService {
         Double[] queryEmbedding = embeddingService.embedAsDoubleArray(query);
         String embeddingStr = arrayToString(queryEmbedding);
 
-        // 2. 并行双路召回（Bi-Encoder）
+        // 1.5 查询扩展：仅作用于 BM25 路（向量路语义捕获已足够）。
+        // 扩展失败/未启用时 expand 内部返回原 query，零影响
+        String expandedQuery = queryExpansionService.expand(query, kbId);
+
+        // 2. 双路召回（Bi-Encoder）：向量路用原 query，关键词路用扩展 query
         List<KnowledgeChunk> vectorResults = chunkMapper.searchSimilar(
                 kbId, embeddingStr, SEARCH_TOP_K, VECTOR_THRESHOLD);
         List<KnowledgeChunk> keywordResults = chunkMapper.searchByKeyword(
-                kbId, query, SEARCH_TOP_K);
+                kbId, expandedQuery, SEARCH_TOP_K);
 
         log.debug("双路召回完成: 向量={}, 关键词={}", vectorResults.size(), keywordResults.size());
 

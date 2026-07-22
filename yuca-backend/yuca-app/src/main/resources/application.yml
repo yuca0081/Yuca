@@ -127,6 +127,9 @@ yuca:
       threshold: 20            # active 消息数 > 此值时触发摘要
       keep-recent: 10          # 摘要时保留最近 N 条原文不参与压缩
       model-name: qwen-turbo   # 复用 dashscope.base-url + dashscope.api-key
+  knowledge:                   # 知识库模块配置（与 yuca.ai 同级）
+    query-expansion:
+      enabled: true            # #8 查询扩展：关时 BM25 路直接用原 query
 
 # Swagger/OpenAPI配置
 springdoc:

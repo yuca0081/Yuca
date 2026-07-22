@@ -32,6 +32,8 @@ import org.yuca.knowledge.mapper.KnowledgeBaseMapper;
 import org.yuca.knowledge.document.parser.DocumentParserRegistry;
 import org.yuca.knowledge.mapper.KnowledgeChunkMapper;
 import org.yuca.knowledge.mapper.KnowledgeDocMapper;
+import org.yuca.knowledge.entity.KnowledgeVocabulary;
+import org.yuca.knowledge.mapper.KnowledgeVocabularyMapper;
 
 import java.io.IOException;
 import java.security.MessageDigest;
@@ -39,8 +41,10 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -81,10 +85,19 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
     @Autowired
     private AiProperties aiProperties;
 
+    @Autowired
+    private KnowledgeVocabularyMapper knowledgeVocabularyMapper;
+
     private static final long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
     /** DashScope text-embedding-v3 单次批量上限 10 条，超出需自行分批 */
     private static final int EMBED_BATCH_SIZE = 10;
+
+    // ========== #8 查询扩展：词汇表自动抽取 ==========
+    /** 章节标题长度过滤下限：太短无语义（如单字"一"、"序"） */
+    private static final int VOCAB_TERM_MIN_LEN = 2;
+    /** 章节标题长度过滤上限：太长通常是正文误识别，不是概念词 */
+    private static final int VOCAB_TERM_MAX_LEN = 50;
 
     /**
      * 上传文档并处理
@@ -164,10 +177,11 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文件上传失败: " + e.getMessage());
         }
 
-        // 分支 C：hash 不同，触发重建——先软删旧 doc 和旧切片
+        // 分支 C：hash 不同，触发重建——先软删旧 doc、旧切片和旧词汇
         if (oldDoc != null) {
             log.info("[upload] 检测到内容变更，触发重建: kbId={}, docName={}, oldDocId={}", kbId, docName, oldDoc.getId());
             softDeleteChunksOfDoc(oldDoc.getId());
+            softDeleteVocabOfDoc(oldDoc.getId());
             knowledgeDocMapper.deleteById(oldDoc.getId());  // 逻辑删除（@TableLogic 自动转 UPDATE）
         } else {
             log.info("[upload] 新建文档: kbId={}, docName={}", kbId, docName);
@@ -188,6 +202,9 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
 
         // 批量生成向量并按章节树结构存储切片
         saveChapterNodes(knowledgeDoc.getId(), kbId, chapterRoots);
+
+        // #8 查询扩展：把章节标题抽到 knowledge_vocabulary 表，供检索时找同义词
+        extractAndSaveVocabulary(knowledgeDoc.getId(), kbId, chapterRoots);
 
         log.info("文档上传成功: docId={}, kbId={}, chunks={}", knowledgeDoc.getId(), kbId, totalNodes);
         return knowledgeDoc.getId();
@@ -220,6 +237,9 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
             LambdaQueryWrapper<KnowledgeChunk> chunkWrapper = new LambdaQueryWrapper<>();
             chunkWrapper.eq(KnowledgeChunk::getDocId, docId);
             knowledgeChunkMapper.delete(chunkWrapper);
+
+            // 逻辑删除相关词汇（#8 查询扩展：本 doc 抽出的词汇也属于该 doc 的派生数据）
+            softDeleteVocabOfDoc(docId);
 
             // 同步清理 MinIO 物理文件：失败仅记 WARN，不影响已完成的 DB 软删
             deleteMinioFileSafely(doc.getFilePath(), docId);
@@ -547,6 +567,87 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
         LambdaQueryWrapper<KnowledgeChunk> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(KnowledgeChunk::getDocId, docId);
         knowledgeChunkMapper.delete(wrapper);
+    }
+
+    /**
+     * 软删某文档抽取的全部词汇（@TableLogic 自动转 UPDATE SET deleted=1）。
+     *
+     * <p>管理员预设的词汇（doc_id IS NULL）不会被本方法影响。
+     */
+    private void softDeleteVocabOfDoc(Long docId) {
+        LambdaQueryWrapper<KnowledgeVocabulary> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(KnowledgeVocabulary::getDocId, docId);
+        knowledgeVocabularyMapper.delete(wrapper);
+    }
+
+    /**
+     * #8 查询扩展：把章节标题抽到 {@code knowledge_vocabulary} 表。
+     *
+     * <p>策略：
+     * <ul>
+     *   <li>DFS 前序收集所有 {@code headingLevel > 0} 的章节标题</li>
+     *   <li>长度过滤：[2, 50] 字符——太短无语义，太长通常是误识别</li>
+     *   <li>去重：{@code LinkedHashSet} 按小写等值去重，保留首次出现顺序</li>
+     *   <li>批量 embedding（复用 {@link #EMBED_BATCH_SIZE}）后逐条插入</li>
+     * </ul>
+     *
+     * <p>失败降级：整体 try-catch + WARN，不阻断上传流程。词汇抽取是"锦上添花"，
+     * 不应让一次 embed API 故障导致整个上传事务回滚。
+     *
+     * <p>扁平切片（roots 全是 headingLevel=0）：titles 为空，直接返回。
+     */
+    private void extractAndSaveVocabulary(Long docId, Long kbId, List<ChapterNode> roots) {
+        try {
+            // 1. DFS 收集标题
+            Set<String> titles = new LinkedHashSet<>();
+            for (ChapterNode root : roots) {
+                collectTitlesDfs(root, titles);
+            }
+            if (titles.isEmpty()) {
+                log.debug("[vocab] 无章节标题可抽取: docId={}", docId);
+                return;
+            }
+
+            // 2. 长度过滤 + 去 null/blank（LinkedHashSet 已去重等值）
+            List<String> terms = titles.stream()
+                    .filter(t -> t != null && !t.isBlank())
+                    .map(String::trim)
+                    .filter(t -> t.length() >= VOCAB_TERM_MIN_LEN && t.length() <= VOCAB_TERM_MAX_LEN)
+                    .toList();
+            if (terms.isEmpty()) {
+                log.debug("[vocab] 标题长度过滤后为空: docId={}", docId);
+                return;
+            }
+
+            // 3. 批量 embed
+            List<Double[]> embeddings = embedInBatches(terms);
+
+            // 4. 逐条插入（量小，不必批量 insert）
+            for (int i = 0; i < terms.size(); i++) {
+                KnowledgeVocabulary vocab = new KnowledgeVocabulary();
+                vocab.setKbId(kbId);
+                vocab.setDocId(docId);
+                vocab.setTerm(terms.get(i));
+                vocab.setEmbedding(embeddings.get(i));
+                vocab.setSource("extracted");
+                knowledgeVocabularyMapper.insert(vocab);
+            }
+
+            log.info("[vocab] 词汇抽取成功: docId={}, kbId={}, terms={}", docId, kbId, terms.size());
+        } catch (Exception e) {
+            log.warn("[vocab] 词汇抽取失败，跳过（不影响上传主流程）: docId={}, error={}",
+                    docId, e.getMessage());
+        }
+    }
+
+    /** DFS 前序收集章节标题（仅 headingLevel > 0 的节点，扁平切片跳过） */
+    private void collectTitlesDfs(ChapterNode node, Set<String> out) {
+        if (node.getHeadingLevel() > 0 && node.getTitle() != null) {
+            out.add(node.getTitle());
+        }
+        for (ChapterNode child : node.getChildren()) {
+            collectTitlesDfs(child, out);
+        }
     }
 
     /**
