@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.yuca.knowledge.document.MarkdownChapterTreeBuilder;
 import org.yuca.knowledge.document.parser.DocumentParserRegistry;
 import org.yuca.knowledge.document.parser.MarkdownTxtParser;
+import org.yuca.knowledge.document.splitter.DocumentByParagraphSplitter;
 
 /**
  * 知识库模块配置。
@@ -21,6 +22,14 @@ public class KnowledgeConfig {
     @Bean
     public MarkdownChapterTreeBuilder markdownChapterTreeBuilder() {
         return new MarkdownChapterTreeBuilder();
+    }
+
+    /**
+     * 段落切片器（#11：Clean-非md / Decent 路径用）。无状态，单例。
+     */
+    @Bean
+    public DocumentByParagraphSplitter documentByParagraphSplitter() {
+        return new DocumentByParagraphSplitter();
     }
 
     /**

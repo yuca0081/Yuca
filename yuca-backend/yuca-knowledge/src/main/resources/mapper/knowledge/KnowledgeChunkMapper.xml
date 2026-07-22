@@ -85,4 +85,76 @@
         LIMIT #{limit}
     </select>
 
+    <!--
+        #10 元数据过滤的公共 WHERE 片段。被 searchSimilarWithFilter / searchByKeywordWithFilter 引用。
+        filter=null 或字段全空时，不 JOIN knowledge_doc，与原无过滤 SQL 等价。
+        filter.tags 用 PG 数组 overlap 操作符 &&（任一命中）；其他字段等值/范围。
+        filter.attrs 的 key 在 Service 层已校验白名单（^[A-Za-z0-9_]{1,50}$），用 ${} 拼接；
+        value 走 #{} 参数绑定防注入。
+    -->
+    <sql id="metadataFilterClause">
+        <if test="filter != null">
+            AND d.deleted = FALSE
+            <if test="filter.tags != null and filter.tags.size() &gt; 0">
+                AND d.tags &amp;&amp; CAST(#{filter.tags} AS varchar[])
+            </if>
+            <if test="filter.source != null and filter.source != ''">
+                AND d.data_source = #{filter.source}
+            </if>
+            <if test="filter.dateFrom != null">
+                AND d.created_at &gt;= #{filter.dateFrom}
+            </if>
+            <if test="filter.dateTo != null">
+                AND d.created_at &lt;= #{filter.dateTo}
+            </if>
+            <if test="filter.attrs != null and !filter.attrs.isEmpty()">
+                <foreach collection="filter.attrs.entrySet()" item="entry" separator="AND">
+                    AND d.metadata -&gt;&gt; '${entry.key}' = #{entry.value}
+                </foreach>
+            </if>
+        </if>
+    </sql>
+
+    <!-- 向量相似度搜索（带元数据过滤） -->
+    <select id="searchSimilarWithFilter" resultMap="BaseResultMap">
+        SELECT
+            c.id, c.doc_id, c.kb_id, c.content, c.embedding, c.chunk_index, c.is_active,
+            c.created_at, c.updated_at, c.deleted
+        <if test="filter != null">
+            FROM knowledge_chunk c JOIN knowledge_doc d ON c.doc_id = d.id
+        </if>
+        <if test="filter == null">
+            FROM knowledge_chunk c
+        </if>
+        WHERE c.deleted = FALSE
+          AND c.is_active = TRUE
+          AND c.kb_id = #{kbId}
+          AND c.embedding IS NOT NULL
+          AND 1 - (c.embedding &lt;=&gt; CAST(#{queryEmbedding} AS vector)) &gt;= #{threshold}
+          <include refid="metadataFilterClause"/>
+        ORDER BY c.embedding &lt;=&gt; CAST(#{queryEmbedding} AS vector)
+        LIMIT #{topK}
+    </select>
+
+    <!-- 关键词全文搜索（带元数据过滤） -->
+    <select id="searchByKeywordWithFilter" resultMap="BaseResultMap">
+        SELECT
+            c.id, c.doc_id, c.kb_id, c.content, c.embedding, c.chunk_index, c.is_active,
+            c.created_at, c.updated_at, c.deleted
+        <if test="filter != null">
+            FROM knowledge_chunk c JOIN knowledge_doc d ON c.doc_id = d.id
+        </if>
+        <if test="filter == null">
+            FROM knowledge_chunk c
+        </if>
+        LEFT JOIN websearch_to_tsquery('chinese', #{query}) q ON TRUE
+        WHERE c.deleted = FALSE
+          AND c.is_active = TRUE
+          AND c.kb_id = #{kbId}
+          AND c.fts_tokens @@ q
+          <include refid="metadataFilterClause"/>
+        ORDER BY ts_rank_cd(c.fts_tokens, q) DESC
+        LIMIT #{topK}
+    </select>
+
 </mapper>

@@ -2,8 +2,10 @@ package org.yuca.knowledge.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
+import org.yuca.infrastructure.handle.StringArrayListTypeHandler;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 知识库文档实体类
@@ -12,7 +14,7 @@ import java.time.LocalDateTime;
  * @since 2025-01-27
  */
 @Data
-@TableName("knowledge_doc")
+@TableName(value = "knowledge_doc", autoResultMap = true)
 public class KnowledgeDoc {
 
     /**
@@ -52,7 +54,13 @@ public class KnowledgeDoc {
     private String dataSource;
 
     /**
-     * 元数据（JSON格式）
+     * 文档标签数组（#10 元数据过滤）。PG VARCHAR[] ↔ List&lt;String&gt;。
+     */
+    @TableField(typeHandler = StringArrayListTypeHandler.class)
+    private List<String> tags;
+
+    /**
+     * 元数据（JSONB 字段的字符串表示；具体 key/value 过滤由 MetadataFilter.attrs 负责）
      */
     private String metadata;
 
@@ -66,6 +74,16 @@ public class KnowledgeDoc {
      * 旧记录可能为 NULL。
      */
     private String contentHash;
+
+    /**
+     * #11 文档质量评分 [0,1]，越大越好；旧记录为 NULL。
+     */
+    private Float qualityScore;
+
+    /**
+     * #11 质量分类：Clean / Decent / Garbage；旧记录为 NULL。
+     */
+    private String qualityTier;
 
     /**
      * 创建时间

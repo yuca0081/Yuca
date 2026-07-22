@@ -40,7 +40,7 @@ public class AiTestController {
         AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
         QwenChatModel model = new QwenChatModel(
                 dashscope.getBaseUrl(),
-                "sk-4632c16e41c64e738d3b4147aa58581f",
+                dashscope.getApiKey(),
                 "qwen3.5-flash");
         ChatRequest request = ChatRequest.builder()
                 .messages(java.util.List.of(UserMessage.from(message)))

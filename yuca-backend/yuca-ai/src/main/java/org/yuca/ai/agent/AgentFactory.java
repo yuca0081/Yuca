@@ -9,10 +9,9 @@ import org.yuca.ai.agent.enhancer.RagEnhancer;
 import org.yuca.ai.agent.enhancer.SummaryEnhancer;
 import org.yuca.ai.agent.enhancer.SystemPromptEnhancer;
 import org.yuca.ai.config.AiProperties;
+import org.yuca.ai.core.ChatModelFactory;
 import org.yuca.ai.core.model.ChatModel;
 import org.yuca.ai.core.model.StreamingChatModel;
-import org.yuca.ai.core.provider.qwen.QwenChatModel;
-import org.yuca.ai.core.provider.qwen.QwenStreamingChatModel;
 import org.yuca.ai.history.ChatHistoryStore;
 import org.yuca.ai.retrieval.RetrievalService;
 import org.yuca.ai.retrieval.TokenBudgetAssembler;
@@ -38,6 +37,7 @@ public class AgentFactory {
     private final SkillTool skillTool;
     private final RetrievalService retrievalService;
     private final TokenBudgetAssembler tokenBudgetAssembler;
+    private final ChatModelFactory chatModelFactory;
 
     /**
      * 创建简单 Agent（无历史、无工具、无增强器）
@@ -61,7 +61,7 @@ public class AgentFactory {
      * @param modelName 模型名（如 "qwen-turbo"），null 时退回到默认模型
      */
     public Agent simpleAgent(ChatContext context, String modelName) {
-        ChatModel model = (modelName == null) ? buildChatModel() : buildChatModel(modelName);
+        ChatModel model = (modelName == null) ? chatModelFactory.chatModel() : chatModelFactory.chatModel(modelName);
         return Agent.builder()
                 .chatModel(model)
                 .context(context)
@@ -104,22 +104,14 @@ public class AgentFactory {
         // 历史摘要压缩（order=-2，比意图识别更先跑）：触发时把最早一批消息压成 SUMMARY 持久化，
         // HistoryEnhancer 接下来通过 getActiveMessages 只加载 [SUMMARY, ...最近 raw]
         if (aiProperties.getSummary().isEnabled()) {
-            AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
-            ChatModel summaryModel = new QwenChatModel(
-                    dashscope.getBaseUrl(),
-                    dashscope.getApiKey(),
-                    aiProperties.getSummary().getModelName());
+            ChatModel summaryModel = chatModelFactory.chatModel(aiProperties.getSummary().getModelName());
             enhancers.add(new SummaryEnhancer(historyStore, aiProperties.getSummary(), summaryModel));
         }
 
         // 意图识别（order=-1，最先跑）：写 context.intent 供 RagEnhancer 路由
         // 失败/未启用时 RagEnhancer 走原路径，行为等价于重构前
         if (aiProperties.getIntentClassifier().isEnabled()) {
-            AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
-            ChatModel intentModel = new QwenChatModel(
-                    dashscope.getBaseUrl(),
-                    dashscope.getApiKey(),
-                    aiProperties.getIntentClassifier().getModelName());
+            ChatModel intentModel = chatModelFactory.chatModel(aiProperties.getIntentClassifier().getModelName());
             enhancers.add(new IntentRecognitionEnhancer(intentModel));
         }
 
@@ -133,7 +125,7 @@ public class AgentFactory {
         ToolExtractor toolExtractor = new ToolExtractor(List.of(new Calculator(), skillTool));
 
         return Agent.builder()
-                .chatModel(buildChatModel())
+                .chatModel(chatModelFactory.chatModel())
                 .context(context)
                 .enhancers(enhancers)
                 .toolSpecifications(toolExtractor.getSpecifications())
@@ -143,19 +135,14 @@ public class AgentFactory {
 
     // =============================================================
 
-    private ChatModel buildChatModel() {
-        AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
-        return new QwenChatModel(dashscope.getBaseUrl(), dashscope.getApiKey(), dashscope.getModelName());
-    }
-
-    private ChatModel buildChatModel(String modelName) {
-        AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
-        return new QwenChatModel(dashscope.getBaseUrl(), dashscope.getApiKey(), modelName);
-    }
-
+    /**
+     * 流式 ChatModel 门面方法——委托 {@link ChatModelFactory}。
+     *
+     * <p>保留 public 是为了 {@code AiClient} 等历史调用方不破坏二进制兼容；
+     * 新代码请直接注入 {@code ChatModelFactory}。
+     */
     public StreamingChatModel buildStreamingChatModel() {
-        AiProperties.ProviderConfig dashscope = aiProperties.getDashscope();
-        return new QwenStreamingChatModel(dashscope.getBaseUrl(), dashscope.getApiKey(), dashscope.getModelName());
+        return chatModelFactory.streamingChatModel();
     }
 
     private String buildSystemPrompt() {

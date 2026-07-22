@@ -1,4 +1,6 @@
 spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
   application:
     name: Yuca
 
@@ -103,14 +105,15 @@ minio:
 # AI配置
 yuca:
   ai:
+    # API Key 通过环境变量或 application-local.yml 注入，勿硬编码提交
     dashscope:
       base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
       model-name: glm-5.1
-      api-key: sk-4632c16e41c64e738d3b4147aa58581f
+      api-key: ${DASHSCOPE_API_KEY:}
     openai:
       base-url: https://api.deepseek.com
       model-name: deepseek-chat
-      api-key: sk-46aaad92e53e4cfb8a165e99daaf17bc
+      api-key: ${DEEPSEEK_API_KEY:}
     embedding:
       model-name: text-embedding-v3
       dimension: 1024
@@ -130,6 +133,10 @@ yuca:
   knowledge:                   # 知识库模块配置（与 yuca.ai 同级）
     query-expansion:
       enabled: true            # #8 查询扩展：关时 BM25 路直接用原 query
+    multi-query:
+      enabled: true            # #9 多查询扩展：关时仅用原 query 单路召回
+    quality:
+      enabled: true            # #11 质量评分：关时走原硬编码切片（md章节树 / 字符切片）
 
 # Swagger/OpenAPI配置
 springdoc:

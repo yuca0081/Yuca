@@ -29,3 +29,7 @@ nul
 ### Logs ###
 *.log
 logs/
+
+### Secrets / local-only config ###
+**/application-local.yml
+**/application-local.yaml

@@ -17,9 +17,6 @@ import org.yuca.ai.core.model.ChatRequest;
 import org.yuca.ai.core.model.ChatResponse;
 import org.yuca.ai.embedding.EmbeddingService;
 import org.yuca.knowledge.document.ChapterNode;
-import org.yuca.knowledge.document.Document;
-import org.yuca.knowledge.document.DocumentByCharacterSplitter;
-import org.yuca.knowledge.document.MarkdownChapterTreeBuilder;
 import org.yuca.common.exception.BusinessException;
 import org.yuca.common.response.ErrorCode;
 import org.yuca.infrastructure.storage.dto.UploadResult;
@@ -34,6 +31,9 @@ import org.yuca.knowledge.mapper.KnowledgeChunkMapper;
 import org.yuca.knowledge.mapper.KnowledgeDocMapper;
 import org.yuca.knowledge.entity.KnowledgeVocabulary;
 import org.yuca.knowledge.mapper.KnowledgeVocabularyMapper;
+import org.yuca.knowledge.service.quality.DocumentQualityScorer;
+import org.yuca.knowledge.service.quality.DocumentRoutingService;
+import org.yuca.knowledge.service.quality.QualityScore;
 
 import java.io.IOException;
 import java.security.MessageDigest;
@@ -74,9 +74,6 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
     private EmbeddingService embeddingService;
 
     @Autowired
-    private MarkdownChapterTreeBuilder markdownChapterTreeBuilder;
-
-    @Autowired
     private DocumentParserRegistry documentParserRegistry;
 
     @Autowired
@@ -87,6 +84,12 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
 
     @Autowired
     private KnowledgeVocabularyMapper knowledgeVocabularyMapper;
+
+    @Autowired
+    private DocumentQualityScorer documentQualityScorer;
+
+    @Autowired
+    private DocumentRoutingService documentRoutingService;
 
     private static final long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
@@ -145,20 +148,24 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
             return oldDoc.getId();
         }
 
-        // 分支 B/C：内容不同或首次上传 → 解析、切片
+        // 分支 B/C：内容不同或首次上传 → 解析、评分、路由切片
         List<ChapterNode> chapterRoots;
+        QualityScore qualityScore;
         try {
             String content = documentParserRegistry.parse(fileFormat, bytes);
 
-            boolean useChapterTree = "md".equalsIgnoreCase(fileFormat)
-                    && markdownChapterTreeBuilder.hasHeadings(content);
-            if (useChapterTree) {
-                chapterRoots = markdownChapterTreeBuilder.build(content);
-                log.info("Markdown 章节树切片: docName={}, 根节点数={}", docName, chapterRoots.size());
-            } else {
-                chapterRoots = splitFlat(content);
-                log.info("扁平字符切片: docName={}, 切片数={}", docName, chapterRoots.size());
-            }
+            // #11 质量评分：解析后立即评分，供后续路由 + 持久化
+            qualityScore = documentQualityScorer.score(content, fileFormat);
+            log.info("[upload] 文档质量评分: docName={}, tier={}, overall={}",
+                    docName, qualityScore.getTier(), qualityScore.getOverall());
+
+            // #11 智能路由：根据 tier 选切片策略
+            // 关闭 quality 开关时 DocumentRoutingService.route 内部退化为原硬编码路径
+            chapterRoots = documentRoutingService.route(content, fileFormat, qualityScore);
+            log.info("[upload] 切片完成: docName={}, 切片数={}, tier={}",
+                    docName, countNodes(chapterRoots), qualityScore.getTier());
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("文档解析失败: {}", e.getMessage(), e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文档解析失败: " + e.getMessage());
@@ -187,7 +194,7 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
             log.info("[upload] 新建文档: kbId={}, docName={}", kbId, docName);
         }
 
-        // 插入新文档记录（带 contentHash）
+        // 插入新文档记录（带 contentHash + 质量评分）
         KnowledgeDoc knowledgeDoc = new KnowledgeDoc();
         knowledgeDoc.setKbId(kbId);
         knowledgeDoc.setDocName(docName);
@@ -197,6 +204,8 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
         knowledgeDoc.setDataSource("upload");
         knowledgeDoc.setChunkCount(totalNodes);
         knowledgeDoc.setContentHash(contentHash);
+        knowledgeDoc.setQualityScore((float) qualityScore.getOverall());
+        knowledgeDoc.setQualityTier(qualityScore.getTier());
 
         knowledgeDocMapper.insert(knowledgeDoc);
 
@@ -319,23 +328,6 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
                 .orderByAsc(KnowledgeChunk::getChunkIndex);
 
         return knowledgeChunkMapper.selectList(wrapper);
-    }
-
-    /**
-     * 扁平字符切片（非 md 或无标题 md 的降级路径）。
-     * 把字符切片结果包装为 headingLevel=0 的 ChapterNode，后续与章节树节点共用一套存储逻辑。
-     */
-    private List<ChapterNode> splitFlat(String content) {
-        DocumentByCharacterSplitter splitter = new DocumentByCharacterSplitter(100, 10);
-        List<String> chunks = splitter.split(Document.from(content));
-        List<ChapterNode> roots = new ArrayList<>();
-        for (String chunk : chunks) {
-            ChapterNode node = new ChapterNode();
-            node.setHeadingLevel(0);
-            node.setContent(chunk);
-            roots.add(node);
-        }
-        return roots;
     }
 
     /** 统计章节树总节点数（含所有子孙） */
