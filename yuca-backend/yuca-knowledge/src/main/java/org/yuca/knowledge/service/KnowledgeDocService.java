@@ -139,7 +139,7 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文件读取失败: " + e.getMessage());
         }
 
-        // 查找同 (kbId, docName) 的未删除旧文档（@TableLogic 自动过滤 deleted=1）
+        // 查找同 (kbId, docName) 的未删除旧文档
         KnowledgeDoc oldDoc = findActiveByName(kbId, docName);
 
         // 分支 A：内容完全相同 → 跳过解析/上传/嵌入，直接返回旧 docId
@@ -212,8 +212,8 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
         // 批量生成向量并按章节树结构存储切片
         saveChapterNodes(knowledgeDoc.getId(), kbId, chapterRoots);
 
-        // #8 查询扩展：把章节标题抽到 knowledge_vocabulary 表，供检索时找同义词
-        extractAndSaveVocabulary(knowledgeDoc.getId(), kbId, chapterRoots);
+        // 8 查询扩展：把章节标题抽到 knowledge_vocabulary 表，供检索时找同义词
+//        extractAndSaveVocabulary(knowledgeDoc.getId(), kbId, chapterRoots);
 
         log.info("文档上传成功: docId={}, kbId={}, chunks={}", knowledgeDoc.getId(), kbId, totalNodes);
         return knowledgeDoc.getId();
@@ -362,10 +362,14 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
             return;
         }
 
-        // 1. DFS 前序扁平化
+        // 1. DFS 前序扁平化（跳过空 content 节点）
         List<ChapterNode> all = new ArrayList<>();
         for (ChapterNode root : roots) {
             flattenDfs(root, all);
+        }
+        if (all.isEmpty()) {
+            log.warn("过滤空 content 节点后无可保存切片: docId={}", docId);
+            return;
         }
 
         // node -> 在 all 中的索引（用 IdentityHashMap 按==比较，避免 equals 误判）
@@ -375,7 +379,8 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
         }
 
         // 1.5 为章节节点生成 LLM 摘要（扁平切片 headingLevel=0 跳过）
-        generateSummaries(all);
+        // 暂时关闭：DashScope qwen-turbo 免费额度耗尽，恢复额度后取消注释即可
+        // generateSummaries(all);
 
         // 2. 批量生成嵌入（embeddingText 此时优先用 summary，分批规避 DashScope 单次 25 条上限）
         List<String> embeddingTexts = all.stream().map(ChapterNode::embeddingText).toList();
@@ -391,7 +396,11 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
     }
 
     private void flattenDfs(ChapterNode node, List<ChapterNode> out) {
-        out.add(node);
+        // 跳过空 content 节点：连续标题（H1 紧接 H2）时父节点 content 必然为空，
+        // 其标题语义已通过子节点 breadcrumb 保留，无需单独生成 chunk
+        if (node.getContent() != null && !node.getContent().isBlank()) {
+            out.add(node);
+        }
         for (ChapterNode child : node.getChildren()) {
             flattenDfs(child, out);
         }
@@ -401,30 +410,36 @@ public class KnowledgeDocService extends ServiceImpl<KnowledgeDocMapper, Knowled
                                      List<Double[]> embeddings,
                                      Map<ChapterNode, Integer> indexMap,
                                      int[] chunkIdx) {
-        KnowledgeChunk chunk = new KnowledgeChunk();
-        chunk.setDocId(docId);
-        chunk.setKbId(kbId);
-        chunk.setContent(node.getContent());
-        chunk.setEmbedding(embeddings.get(indexMap.get(node)));
-        chunk.setChunkIndex(chunkIdx[0]++);
-        chunk.setIsActive(true);
+        // 与 flattenDfs 同步：空 content 节点不生成 chunk 记录，
+        // 但继续递归 children，parentId 透传给子节点（指向最近祖先非空节点）
+        Long nextParentId = parentId;
+        if (node.getContent() != null && !node.getContent().isBlank()) {
+            KnowledgeChunk chunk = new KnowledgeChunk();
+            chunk.setDocId(docId);
+            chunk.setKbId(kbId);
+            chunk.setContent(node.getContent());
+            chunk.setEmbedding(embeddings.get(indexMap.get(node)));
+            chunk.setChunkIndex(chunkIdx[0]++);
+            chunk.setIsActive(true);
 
-        // 章节树字段（headingLevel > 0 时填充；扁平切片 headingLevel=0 时全为 NULL）
-        if (node.getHeadingLevel() > 0) {
-            chunk.setTitle(node.getTitle());
-            chunk.setHeadingLevel((short) node.getHeadingLevel());
-            chunk.setBreadcrumb(node.getBreadcrumb());
-            chunk.setSummary(node.getSummary());  // LLM 摘要；失败降级时为 null
-            chunk.setLineStart(node.getLineStart());
-            chunk.setLineEnd(node.getLineEnd());
+            // 章节树字段（headingLevel > 0 时填充；扁平切片 headingLevel=0 时全为 NULL）
+            if (node.getHeadingLevel() > 0) {
+                chunk.setTitle(node.getTitle());
+                chunk.setHeadingLevel((short) node.getHeadingLevel());
+                chunk.setBreadcrumb(node.getBreadcrumb());
+                chunk.setSummary(node.getSummary());  // LLM 摘要；失败降级时为 null
+                chunk.setLineStart(node.getLineStart());
+                chunk.setLineEnd(node.getLineEnd());
+            }
+            chunk.setParentId(parentId);
+
+            knowledgeChunkMapper.insert(chunk);  // 回填 chunk.id
+            node.setDbId(chunk.getId());
+            nextParentId = chunk.getId();
         }
-        chunk.setParentId(parentId);
-
-        knowledgeChunkMapper.insert(chunk);  // 回填 chunk.id
-        node.setDbId(chunk.getId());
 
         for (ChapterNode child : node.getChildren()) {
-            insertNodeRecursive(child, chunk.getId(), docId, kbId, embeddings, indexMap, chunkIdx);
+            insertNodeRecursive(child, nextParentId, docId, kbId, embeddings, indexMap, chunkIdx);
         }
     }
 

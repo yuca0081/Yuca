@@ -54,6 +54,12 @@ export function DocumentDetail({ doc, chunks, chunkLoading }: DocumentDetailProp
                     {chunk.isActive ? '活跃' : '未激活'}
                   </span>
                 </div>
+                {chunk.breadcrumb && (
+                  <div className="mb-2 text-xs text-[#6B5344] bg-[#FFF5E6] border border-[#E8DDD4] px-2 py-1 leading-relaxed break-all">
+                    <span className="font-medium text-[#8B6F47]">文档路径：</span>
+                    {chunk.breadcrumb}
+                  </div>
+                )}
                 <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{chunk.content}</p>
               </div>
             ))}

@@ -55,6 +55,14 @@ export interface KnowledgeChunk {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  // 章节树字段（md 文档有标题层级时填充，非 md 平切片为 null）
+  title?: string | null
+  headingLevel?: number | null
+  breadcrumb?: string | null
+  parentId?: number | null
+  summary?: string | null
+  lineStart?: number | null
+  lineEnd?: number | null
 }
 
 export type { PageResponse }

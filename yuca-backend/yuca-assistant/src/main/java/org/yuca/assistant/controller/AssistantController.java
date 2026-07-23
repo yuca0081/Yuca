@@ -98,9 +98,10 @@ public class AssistantController {
      * 创建新会话
      */
     @PostMapping("/session")
-    public Result<SessionDTO> createSession(@RequestBody CreateSessionRequest request) {
+    public Result<SessionDTO> createSession(@RequestBody(required = false) CreateSessionRequest request) {
         Long userId = SecurityUtils.getCurrentUserId();
-        SessionDTO session = assistantService.createSession(userId, request.getModelName());
+        String modelName = request == null ? null : request.getModelName();
+        SessionDTO session = assistantService.createSession(userId, modelName);
         return Result.success("会话创建成功", session);
     }
 

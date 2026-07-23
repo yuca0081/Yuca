@@ -25,6 +25,7 @@ import org.yuca.assistant.mapper.AssistantSessionMapper;
 import org.yuca.common.exception.BusinessException;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -81,7 +82,8 @@ public class AssistantService {
             sendSseEvent(emitter, response, new SseEvent.SseStartEvent(userMessage.getId()));
 
             // 4. 准备历史消息（从数据库获取会话历史）
-            List<ChatMessage> chatMessages = buildChatMessages(request.getSessionId());
+            // buildChatMessages 返回的是不可变 List（Stream.toList()），这里包装为 ArrayList 以便追加当前消息
+            List<ChatMessage> chatMessages = new ArrayList<>(buildChatMessages(request.getSessionId()));
             // 添加当前用户消息
             chatMessages.add(new UserMessage(request.getContent()));
 

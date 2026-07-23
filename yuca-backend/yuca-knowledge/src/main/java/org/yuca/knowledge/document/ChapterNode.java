@@ -1,6 +1,7 @@
 package org.yuca.knowledge.document;
 
 import lombok.Data;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -67,18 +68,16 @@ public class ChapterNode {
      */
     public String embeddingText() {
         StringBuilder sb = new StringBuilder();
-        appendIfNonEmpty(sb, title);
-        appendIfNonEmpty(sb, breadcrumb);
+        if(!StringUtils.isEmpty(title)){
+            sb.append("标题").append(title).append("\n");
+        }
+        if(!StringUtils.isEmpty(breadcrumb)){
+            sb.append("文档中路径").append(breadcrumb).append("\n");
+        }
         String body = (summary != null && !summary.isEmpty()) ? summary : content;
         if (body != null) {
             sb.append(body);
         }
         return sb.toString();
-    }
-
-    private void appendIfNonEmpty(StringBuilder sb, String line) {
-        if (line != null && !line.isEmpty()) {
-            sb.append(line).append("\n");
-        }
     }
 }
